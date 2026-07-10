@@ -31,6 +31,7 @@ type Server struct {
 	primaryCore *core.Core   // the single/default core; may be nil in a pure multi-core host
 	resolve     CoreResolver // optional per-request core selection
 	auth        Authenticator
+	loginURL    string
 	static      fs.FS
 	logger      *slog.Logger
 	mcp         http.Handler
@@ -60,6 +61,10 @@ type Config struct {
 
 	// Resolve selects the Core per request (for embedders). nil -> always Core.
 	Resolve CoreResolver
+
+	// LoginURL, when set, is reported by /api/authinfo so the UI redirects an
+	// unauthenticated visitor to a hosted sign-in page (used with a custom Auth).
+	LoginURL string
 
 	MCP http.Handler
 
@@ -94,6 +99,7 @@ func New(cfg Config) *Server {
 		primaryCore: cfg.Core,
 		resolve:     cfg.Resolve,
 		auth:        authn,
+		loginURL:    cfg.LoginURL,
 		static:      cfg.Static,
 		logger:      logger,
 		mcp:         cfg.MCP,

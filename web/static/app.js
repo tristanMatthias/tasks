@@ -1486,15 +1486,16 @@ const $loginSubmit = document.getElementById("login-submit");
 let loginCustom = false;
 
 async function showLogin() {
-  let mode = "token";
+  let mode = "token", loginUrl = "";
   try {
     const r = await fetch("/api/authinfo");
-    if (r.ok) mode = (await r.json()).mode;
+    if (r.ok) { const info = await r.json(); mode = info.mode; loginUrl = info.login_url || ""; }
   } catch (_) { /* offline — assume token */ }
   if (mode === "none") return; // no auth required
   loginCustom = mode === "custom";
   if (loginCustom) {
-    // A host (e.g. the hosted SaaS) owns login — nudge the user to (re)authenticate.
+    // A host (e.g. the hosted SaaS) owns login — send the user to it.
+    if (loginUrl) { location.href = loginUrl; return; }
     $loginMsg.textContent = "Authentication required.";
     $loginToken.style.display = "none";
     $loginSubmit.textContent = "Reload";

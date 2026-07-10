@@ -151,7 +151,11 @@ func (s *Server) authMode() string {
 // the current request is already authenticated.
 func (s *Server) handleAuthInfo(w http.ResponseWriter, r *http.Request) {
 	_, authed := s.auth.Authorize(r)
-	writeJSON(w, http.StatusOK, map[string]any{"mode": s.authMode(), "authenticated": authed})
+	out := map[string]any{"mode": s.authMode(), "authenticated": authed}
+	if s.loginURL != "" {
+		out["login_url"] = s.loginURL
+	}
+	writeJSON(w, http.StatusOK, out)
 }
 
 func constEq(a, b string) bool {
