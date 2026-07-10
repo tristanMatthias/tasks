@@ -17,11 +17,12 @@ import (
 
 // Core is the domain service.
 type Core struct {
-	st       *store.Store
-	prefix   string
-	actor    string
-	nowFunc  func() time.Time
-	onChange func() // fired after every successful mutation, any surface
+	st          *store.Store
+	prefix      string
+	actor       string
+	keySelector string // opaque routing prefix embedded in minted API tokens (empty in single-tenant)
+	nowFunc     func() time.Time
+	onChange    func() // fired after every successful mutation, any surface
 }
 
 // SetOnChange registers a hook invoked after each successful mutation (create,
@@ -40,11 +41,16 @@ func (c *Core) changed() {
 type Options struct {
 	Prefix string // issue id prefix; derived from data if empty
 	Actor  string // default actor for audit fields; defaults to "agent"
+	// KeySelector, when set, is embedded into minted API tokens as
+	// "tasks_<selector>_<secret>" so a multi-core host can route a bare token to
+	// the right Core before verifying it. It is opaque to the engine and is NEVER
+	// part of the hashed secret. Empty yields plain "tasks_<secret>" tokens.
+	KeySelector string
 }
 
 // New builds a Core over st. If prefix/actor are empty they are derived/defaulted.
 func New(st *store.Store, opts Options) (*Core, error) {
-	c := &Core{st: st, prefix: opts.Prefix, actor: opts.Actor, nowFunc: time.Now}
+	c := &Core{st: st, prefix: opts.Prefix, actor: opts.Actor, keySelector: opts.KeySelector, nowFunc: time.Now}
 	if c.actor == "" {
 		c.actor = "agent"
 	}

@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"errors"
+	"strings"
 
 	"github.com/tristanMatthias/tasks/pkg/model"
 )
@@ -44,6 +45,10 @@ func (c *Core) CreateKey(label, actor string) (*model.APIKey, error) {
 	out := k
 	out.Hash = "" // never hand the hash back to callers; only the one-time secret
 	out.Secret = TokenPrefix + secret
+	if c.keySelector != "" {
+		// Route-first token: tasks_<selector>_<secret>. Only <secret> is hashed.
+		out.Secret = TokenPrefix + c.keySelector + "_" + secret
+	}
 	return &out, nil
 }
 
@@ -79,6 +84,24 @@ func (c *Core) RevokeKey(id string) (*model.APIKey, error) {
 		return nil, ErrNotFound
 	}
 	return c.st.KeyByID(id)
+}
+
+// SplitToken parses a display token into its routing selector and raw secret.
+// The secret is base62 (never contains "_"), so the split is on the LAST "_":
+//   - "tasks_<secret>"            -> selector "",   secret "<secret>"
+//   - "tasks_<selector>_<secret>" -> selector, secret  (selector may contain "_")
+//
+// ok is false if the token lacks the "tasks_" prefix. Only the secret is hashed;
+// the selector is used purely to route a bare token to the right Core.
+func SplitToken(token string) (selector, secret string, ok bool) {
+	if !strings.HasPrefix(token, TokenPrefix) {
+		return "", "", false
+	}
+	rest := token[len(TokenPrefix):]
+	if i := strings.LastIndexByte(rest, '_'); i >= 0 {
+		return rest[:i], rest[i+1:], true
+	}
+	return "", rest, true
 }
 
 const base62 = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz"

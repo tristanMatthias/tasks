@@ -95,6 +95,40 @@ func TestHashAndTokenGeneration(t *testing.T) {
 	}
 }
 
+func TestKeySelectorAndSplit(t *testing.T) {
+	// A Clerk-style org id contains an underscore — the split must still recover
+	// the full selector and the base62 secret (split on the LAST underscore).
+	st := newCore(t).st
+	c, err := New(st, Options{Prefix: "proj", Actor: "t", KeySelector: "org_2NabcXYZ"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	k, err := c.CreateKey("routed", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.HasPrefix(k.Secret, TokenPrefix+"org_2NabcXYZ_") {
+		t.Fatalf("token missing selector: %q", k.Secret)
+	}
+	sel, secret, ok := SplitToken(k.Secret)
+	if !ok || sel != "org_2NabcXYZ" {
+		t.Fatalf("split selector = %q (ok %v)", sel, ok)
+	}
+	// The recovered raw secret must verify against the same core.
+	if _, err := c.VerifyKey(secret); err != nil {
+		t.Fatalf("verify recovered secret: %v", err)
+	}
+
+	// Single-tenant token: no selector.
+	sel, secret, ok = SplitToken(TokenPrefix + "abc123")
+	if !ok || sel != "" || secret != "abc123" {
+		t.Fatalf("single-tenant split = %q/%q/%v", sel, secret, ok)
+	}
+	if _, _, ok := SplitToken("not-a-token"); ok {
+		t.Fatal("non-token should not parse")
+	}
+}
+
 func TestDefaultActorOnKey(t *testing.T) {
 	c := newCore(t) // actor "tester"
 	k, err := c.CreateKey("", "")
