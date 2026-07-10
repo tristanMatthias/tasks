@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"strings"
+	"sync"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/tristanMatthias/tasks/pkg/api"
@@ -19,6 +20,31 @@ func toolName(opName string) string { return strings.ReplaceAll(opName, " ", "_"
 func newHandler(c *core.Core) http.Handler {
 	srv := NewServer(c)
 	return mcp.NewStreamableHTTPHandler(func(*http.Request) *mcp.Server { return srv }, nil)
+}
+
+// newResolvedHandler builds a streamable-HTTP MCP handler that selects the Core
+// per request (e.g. by tenant), so one endpoint serves every tenant its own
+// board. A per-Core mcp.Server is built once and cached. Requests that fail to
+// resolve get an empty server (mount behind an auth gate so this is rare).
+func newResolvedHandler(resolve func(*http.Request) (*core.Core, error)) http.Handler {
+	var mu sync.Mutex
+	cache := map[*core.Core]*mcp.Server{}
+	empty := mcp.NewServer(&mcp.Implementation{Name: "tasks", Version: "1.0.0"}, nil)
+	pick := func(r *http.Request) *mcp.Server {
+		c, err := resolve(r)
+		if err != nil || c == nil {
+			return empty
+		}
+		mu.Lock()
+		defer mu.Unlock()
+		if s, ok := cache[c]; ok {
+			return s
+		}
+		s := NewServer(c)
+		cache[c] = s
+		return s
+	}
+	return mcp.NewStreamableHTTPHandler(pick, nil)
 }
 
 // NewServer constructs the MCP server, generating one tool per registry op —
