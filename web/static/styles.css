@@ -725,6 +725,8 @@ mark.hit { background: rgba(224, 175, 104, 0.35); color: inherit; border-radius:
   background: color-mix(in srgb, var(--bg, #16161e) 82%, transparent);
   backdrop-filter: blur(2px);
 }
+.keys-overlay[hidden] { display: none; }
+.keys-new[hidden] { display: none; }
 .keys-card {
   display: flex; flex-direction: column; gap: 12px;
   width: min(620px, 94vw); max-height: 86vh; overflow: auto; padding: 22px 22px;
