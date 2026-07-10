@@ -119,10 +119,20 @@ func (s *Server) authGate(next http.Handler) http.Handler {
 	})
 }
 
+// baseAuthenticator sees through the API-key layer to the underlying token/none
+// authenticator, so login-mode detection and the legacy bootstrap are unaffected
+// by whether keys are enabled.
+func baseAuthenticator(a Authenticator) Authenticator {
+	if ka, ok := a.(keyAuth); ok {
+		return ka.baseAuth()
+	}
+	return a
+}
+
 // legacyAuthBootstrap keeps the GET /auth?token=SECRET cookie-setter working
 // (used by existing deployments) when the authenticator supports token login.
 func (s *Server) legacyAuthBootstrap(w http.ResponseWriter, r *http.Request) {
-	ta, ok := s.auth.(tokenAuth)
+	ta, ok := baseAuthenticator(s.auth).(tokenAuth)
 	if !ok {
 		http.NotFound(w, r)
 		return
@@ -137,7 +147,7 @@ func (s *Server) legacyAuthBootstrap(w http.ResponseWriter, r *http.Request) {
 
 // authMode returns a UI hint for the login screen.
 func (s *Server) authMode() string {
-	switch s.auth.(type) {
+	switch baseAuthenticator(s.auth).(type) {
 	case noAuth:
 		return "none"
 	case tokenAuth:

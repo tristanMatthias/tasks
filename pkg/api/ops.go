@@ -91,6 +91,16 @@ type CommentInput struct {
 	Text string `json:"text" in:"body" cli:"arg..." req:"true" desc:"Comment text"`
 }
 
+type KeysListInput struct{}
+
+type KeysCreateInput struct {
+	Label string `json:"label" in:"body" cli:"arg..." desc:"Human label for the key (e.g. 'ci', 'claude-web')"`
+}
+
+type KeysRevokeInput struct {
+	ID string `json:"id" in:"path" cli:"arg" req:"true" desc:"Key id to revoke"`
+}
+
 // ---- the registry: THE single source of truth for every surface ----
 
 // Ops returns the operation registry. Order controls CLI help ordering.
@@ -203,6 +213,25 @@ func Ops() Registry {
 			Handle: func(c *core.Core, in any) (any, error) {
 				p := in.(*CommentInput)
 				return c.Comment(p.ID, p.Text, "")
+			},
+		},
+		{
+			Name: "keys list", Aliases: []string{"keys"}, Summary: "List API keys (for bots/agents) — active and revoked.",
+			Method: "GET", Path: "/api/v1/keys", List: true, Proto: &KeysListInput{},
+			Handle: func(c *core.Core, in any) (any, error) { return c.ListKeys() },
+		},
+		{
+			Name: "keys create", Summary: "Mint an API key for a bot/agent. The secret is shown ONCE.",
+			Method: "POST", Path: "/api/v1/keys", Proto: &KeysCreateInput{},
+			Handle: func(c *core.Core, in any) (any, error) {
+				return c.CreateKey(in.(*KeysCreateInput).Label, "")
+			},
+		},
+		{
+			Name: "keys revoke", Summary: "Revoke an API key by id (immediately stops working).",
+			Method: "POST", Path: "/api/v1/keys/{id}/revoke", Proto: &KeysRevokeInput{},
+			Handle: func(c *core.Core, in any) (any, error) {
+				return c.RevokeKey(in.(*KeysRevokeInput).ID)
 			},
 		},
 	}

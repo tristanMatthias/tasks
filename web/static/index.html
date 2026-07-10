@@ -16,6 +16,28 @@
     <div id="login-error" class="login-error"></div>
   </form>
 </div>
+<div id="keys-overlay" class="keys-overlay" hidden>
+  <div class="keys-card">
+    <div class="keys-head">
+      <div class="keys-title">API keys</div>
+      <button id="keys-close" class="keys-close" aria-label="Close">×</button>
+    </div>
+    <p class="keys-sub">Keys let bots and agents (Claude Code, the CLI, MCP) authenticate to this board. Treat them like passwords.</p>
+    <form id="keys-form" class="keys-form">
+      <input id="keys-label" type="text" placeholder="Label (e.g. claude-web, ci)" autocomplete="off" />
+      <button id="keys-create" type="submit">Create key</button>
+    </form>
+    <div id="keys-new" class="keys-new" hidden>
+      <div class="keys-new-label">New key — copy it now, it won't be shown again:</div>
+      <div class="keys-new-row">
+        <code id="keys-secret" class="keys-secret"></code>
+        <button id="keys-copy" class="keys-copy" type="button">Copy</button>
+      </div>
+    </div>
+    <div id="keys-error" class="keys-error"></div>
+    <div id="keys-list" class="keys-list"></div>
+  </div>
+</div>
 <header class="topbar">
   <div class="topbar-row primary">
     <div class="brand">tasks</div>
@@ -32,6 +54,7 @@
     <button id="expand-all" class="icon-btn" title="Expand all">⊕</button>
     <button id="collapse-all" class="icon-btn" title="Collapse all">⊖</button>
     <button id="reload" class="icon-btn" title="Reload from disk">⟳</button>
+    <button id="settings" class="icon-btn" title="API keys">⚙</button>
   </div>
   <div class="topbar-row filter-row" id="filter-row">
     <div class="filters">

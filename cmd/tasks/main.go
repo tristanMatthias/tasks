@@ -42,7 +42,17 @@ func Run(args []string) error {
 		return nil
 	}
 
-	op := api.Ops().Lookup(cmd)
+	// Support grouped commands like "keys create": try a two-word op name first,
+	// then fall back to the single-word command.
+	var op *api.Op
+	if len(args) >= 2 {
+		if o := api.Ops().Lookup(args[0] + " " + args[1]); o != nil {
+			op, rest = o, args[2:]
+		}
+	}
+	if op == nil {
+		op = api.Ops().Lookup(cmd)
+	}
 	if op == nil {
 		usage()
 		return fmt.Errorf("unknown command: %s", cmd)
@@ -108,6 +118,9 @@ func extractGlobalFlags(args []string) (jsonOut, silent bool, out []string) {
 // ---- output ----
 
 func printHuman(op *api.Op, data []byte, silent bool) error {
+	if strings.HasPrefix(op.Name, "keys") {
+		return printKeys(op, data, silent)
+	}
 	if op.List {
 		var tasks []model.Task
 		if err := json.Unmarshal(data, &tasks); err != nil {
@@ -148,6 +161,62 @@ func printHuman(op *api.Op, data []byte, silent bool) error {
 		printTaskDetail(&t)
 	}
 	return nil
+}
+
+// printKeys renders the API-key commands. "keys create" prints the one-time
+// secret prominently; "keys list" tabulates; "keys revoke" confirms.
+func printKeys(op *api.Op, data []byte, silent bool) error {
+	switch op.Name {
+	case "keys create":
+		var k model.APIKey
+		if err := json.Unmarshal(data, &k); err != nil {
+			return err
+		}
+		if silent {
+			fmt.Println(k.Secret)
+			return nil
+		}
+		fmt.Printf("created key %s  %s\n", k.ID, k.Label)
+		fmt.Printf("\n  %s\n\n", k.Secret)
+		fmt.Println("Store it now — the secret is shown only once.")
+		fmt.Println("Use it as: TASKS_TOKEN=<secret> tasks ready")
+		return nil
+	case "keys revoke":
+		var k model.APIKey
+		if err := json.Unmarshal(data, &k); err != nil {
+			return err
+		}
+		fmt.Printf("revoked key %s  %s\n", k.ID, k.Label)
+		return nil
+	default: // keys list
+		var keys []model.APIKey
+		if err := json.Unmarshal(data, &keys); err != nil {
+			return err
+		}
+		if len(keys) == 0 {
+			fmt.Println("(no keys)")
+			return nil
+		}
+		idW, lbW := 0, 0
+		for i := range keys {
+			idW = max(idW, len(keys[i].ID))
+			lbW = max(lbW, len(keys[i].Label))
+		}
+		for i := range keys {
+			k := &keys[i]
+			state := "active"
+			if k.Revoked() {
+				state = "revoked"
+			}
+			last := "never"
+			if k.LastUsedAt != "" {
+				last = dateOnly(k.LastUsedAt)
+			}
+			fmt.Printf("%-*s  %-*s  %-7s  created %s  last-used %s\n",
+				idW, k.ID, lbW, orDash(k.Label), state, dateOnly(k.CreatedAt), last)
+		}
+		return nil
+	}
 }
 
 func printTasks(tasks []model.Task) {

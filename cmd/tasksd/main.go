@@ -127,6 +127,7 @@ func serve(args []string, getenv func(string) string) error {
 		Core:         c,
 		Static:       web.Static(),
 		Token:        cfg.Token,
+		APIKeys:      true, // bots/agents authenticate with `tasks_<secret>` keys
 		MCP:          mcpsrv.Handler(c),
 		Logger:       logger,
 		MaxBodyBytes: cfg.MaxBodyBytes,

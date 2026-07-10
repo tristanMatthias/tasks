@@ -1534,6 +1534,94 @@ $loginForm.addEventListener("submit", async (e) => {
   }
 });
 
+// ---- API keys pane ----
+const $keysOverlay = document.getElementById("keys-overlay");
+const $keysForm = document.getElementById("keys-form");
+const $keysLabel = document.getElementById("keys-label");
+const $keysList = document.getElementById("keys-list");
+const $keysError = document.getElementById("keys-error");
+const $keysNew = document.getElementById("keys-new");
+const $keysSecret = document.getElementById("keys-secret");
+
+function fmtKeyDate(ts) { return ts ? ts.slice(0, 10) : "—"; }
+
+async function loadKeys() {
+  $keysError.textContent = "";
+  try {
+    const r = await fetch("/api/v1/keys");
+    if (r.status === 401) { hideKeys(); showLogin(); return; }
+    if (!r.ok) { $keysError.textContent = "Failed to load keys (" + r.status + ")"; return; }
+    const keys = await r.json();
+    renderKeys(keys || []);
+  } catch (e) { $keysError.textContent = e.message; }
+}
+
+function renderKeys(keys) {
+  if (!keys.length) { $keysList.innerHTML = '<div class="keys-empty">No keys yet.</div>'; return; }
+  $keysList.innerHTML = "";
+  for (const k of keys) {
+    const row = document.createElement("div");
+    row.className = "keys-row" + (k.revoked_at ? " revoked" : "");
+    const meta = document.createElement("div");
+    meta.className = "keys-meta";
+    const state = k.revoked_at ? "revoked" : "active";
+    meta.innerHTML =
+      '<span class="keys-id">' + escapeHtml(k.id) + "</span>" +
+      '<span class="keys-lbl">' + escapeHtml(k.label || "—") + "</span>" +
+      '<span class="keys-state ' + state + '">' + state + "</span>" +
+      '<span class="keys-dates">created ' + fmtKeyDate(k.created_at) +
+      " · last used " + (k.last_used_at ? fmtKeyDate(k.last_used_at) : "never") + "</span>";
+    row.appendChild(meta);
+    if (!k.revoked_at) {
+      const btn = document.createElement("button");
+      btn.className = "keys-revoke";
+      btn.textContent = "Revoke";
+      btn.onclick = () => revokeKey(k.id);
+      row.appendChild(btn);
+    }
+    $keysList.appendChild(row);
+  }
+}
+
+async function revokeKey(id) {
+  if (!confirm("Revoke key " + id + "? Anything using it stops working immediately.")) return;
+  try {
+    const r = await fetch("/api/v1/keys/" + encodeURIComponent(id) + "/revoke", { method: "POST" });
+    if (!r.ok) { $keysError.textContent = "Revoke failed (" + r.status + ")"; return; }
+    loadKeys();
+  } catch (e) { $keysError.textContent = e.message; }
+}
+
+$keysForm.addEventListener("submit", async (e) => {
+  e.preventDefault();
+  $keysError.textContent = "";
+  try {
+    const r = await fetch("/api/v1/keys", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ label: $keysLabel.value.trim() }),
+    });
+    if (!r.ok) { $keysError.textContent = "Create failed (" + r.status + ")"; return; }
+    const k = await r.json();
+    $keysSecret.textContent = k.secret;
+    $keysNew.hidden = false;
+    $keysLabel.value = "";
+    loadKeys();
+  } catch (e) { $keysError.textContent = e.message; }
+});
+
+document.getElementById("keys-copy").addEventListener("click", async () => {
+  try { await navigator.clipboard.writeText($keysSecret.textContent); } catch (_) {}
+  const b = document.getElementById("keys-copy");
+  b.textContent = "Copied"; setTimeout(() => (b.textContent = "Copy"), 1200);
+});
+
+function openKeys() { $keysNew.hidden = true; $keysOverlay.hidden = false; loadKeys(); }
+function hideKeys() { $keysOverlay.hidden = true; }
+document.getElementById("settings").addEventListener("click", openKeys);
+document.getElementById("keys-close").addEventListener("click", hideKeys);
+$keysOverlay.addEventListener("click", (e) => { if (e.target === $keysOverlay) hideKeys(); });
+
 restoreFromStorage();
 bind();
 reload();

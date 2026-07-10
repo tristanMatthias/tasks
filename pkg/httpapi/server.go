@@ -59,6 +59,10 @@ type Config struct {
 	Auth  Authenticator
 	Token string
 
+	// APIKeys enables DB-backed API-key auth (Bearer tasks_<secret>) verified
+	// against Core, layered in front of the Token/Auth login flow. Requires Core.
+	APIKeys bool
+
 	// Resolve selects the Core per request (for embedders). nil -> always Core.
 	Resolve CoreResolver
 
@@ -93,6 +97,10 @@ func New(cfg Config) *Server {
 		} else {
 			authn = noAuth{}
 		}
+	}
+	// Layer DB-backed API keys in front of the base authenticator (single-tenant).
+	if cfg.APIKeys && cfg.Core != nil {
+		authn = newKeyAuth(authn, cfg.Core)
 	}
 	now := time.Now()
 	s := &Server{

@@ -48,9 +48,20 @@ CREATE TABLE IF NOT EXISTS meta (
 	v TEXT NOT NULL DEFAULT ''
 );
 
+CREATE TABLE IF NOT EXISTS api_keys (
+	id           TEXT PRIMARY KEY,
+	hash         TEXT NOT NULL UNIQUE,        -- sha256 hex of the raw secret
+	label        TEXT NOT NULL DEFAULT '',
+	created_by   TEXT NOT NULL DEFAULT '',
+	created_at   TEXT NOT NULL DEFAULT '',
+	last_used_at TEXT NOT NULL DEFAULT '',
+	revoked_at   TEXT NOT NULL DEFAULT ''
+);
+
 CREATE INDEX IF NOT EXISTS idx_deps_issue      ON dependencies(issue_id);
 CREATE INDEX IF NOT EXISTS idx_deps_dependson  ON dependencies(depends_on_id);
 CREATE INDEX IF NOT EXISTS idx_comments_issue  ON comments(issue_id);
 CREATE INDEX IF NOT EXISTS idx_tasks_status    ON tasks(status);
 CREATE INDEX IF NOT EXISTS idx_tasks_type      ON tasks(issue_type);
+CREATE INDEX IF NOT EXISTS idx_api_keys_hash   ON api_keys(hash);
 `

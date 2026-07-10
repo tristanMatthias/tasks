@@ -48,6 +48,44 @@ func captureRun(t *testing.T, args ...string) (string, error) {
 	return string(out), err
 }
 
+func TestCLIKeys(t *testing.T) {
+	startServer(t)
+
+	// empty list
+	if out, _ := captureRun(t, "keys", "list"); !strings.Contains(out, "(no keys)") {
+		t.Fatalf("empty keys: %q", out)
+	}
+	// create (verbose) via the two-word "keys create" dispatch
+	out, err := captureRun(t, "keys", "create", "ci", "bot")
+	if err != nil {
+		t.Fatalf("keys create: %v", err)
+	}
+	if !strings.Contains(out, "tasks_") || !strings.Contains(out, "only once") {
+		t.Fatalf("keys create output: %q", out)
+	}
+	// create --silent -> just the secret
+	secret, _ := captureRun(t, "keys", "create", "--silent", "quiet")
+	secret = strings.TrimSpace(secret)
+	if !strings.HasPrefix(secret, "tasks_") {
+		t.Fatalf("silent secret: %q", secret)
+	}
+	// list now shows two keys (via the "keys" alias)
+	list, _ := captureRun(t, "keys")
+	if !strings.Contains(list, "active") {
+		t.Fatalf("keys list: %q", list)
+	}
+	// grab an id from json and revoke it
+	jsonOut, _ := captureRun(t, "keys", "list", "--json")
+	id := jsonOut[strings.Index(jsonOut, `"id": "`)+len(`"id": "`):]
+	id = id[:strings.IndexByte(id, '"')]
+	if rev, _ := captureRun(t, "keys", "revoke", id); !strings.Contains(rev, "revoked key "+id) {
+		t.Fatalf("keys revoke: %q", rev)
+	}
+	if out, _ := captureRun(t, "keys", "list"); !strings.Contains(out, "revoked") {
+		t.Fatalf("list after revoke: %q", out)
+	}
+}
+
 func TestCLIFullWorkflow(t *testing.T) {
 	startServer(t)
 

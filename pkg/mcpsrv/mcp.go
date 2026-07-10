@@ -4,11 +4,16 @@ import (
 	"context"
 	"encoding/json"
 	"net/http"
+	"strings"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/tristanMatthias/tasks/pkg/api"
 	"github.com/tristanMatthias/tasks/pkg/core"
 )
+
+// toolName renders an op name as a valid MCP tool identifier (no spaces):
+// "keys create" -> "keys_create".
+func toolName(opName string) string { return strings.ReplaceAll(opName, " ", "_") }
 
 // newHandler builds the streamable-HTTP MCP handler over c. Mount at /mcp.
 func newHandler(c *core.Core) http.Handler {
@@ -22,7 +27,7 @@ func NewServer(c *core.Core) *mcp.Server {
 	s := mcp.NewServer(&mcp.Implementation{Name: "tasks", Version: "1.0.0"}, nil)
 	for _, op := range api.Ops() {
 		s.AddTool(&mcp.Tool{
-			Name:        op.Name,
+			Name:        toolName(op.Name),
 			Description: op.Summary,
 			InputSchema: op.Schema(),
 		}, toolHandler(c, op))
