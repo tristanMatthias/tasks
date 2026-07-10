@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Tasks</title>
+<link rel="stylesheet" href="/static/styles.css" />
+</head>
+<body>
+<header class="topbar">
+  <div class="topbar-row primary">
+    <div class="brand">tasks</div>
+    <div class="search-wrap">
+      <input id="search" type="search" placeholder="filter…" autocomplete="off" />
+      <button id="search-clear" class="search-clear" aria-label="Clear search" title="Clear">×</button>
+    </div>
+    <div class="view-toggle" role="tablist" aria-label="View">
+      <button class="view-btn" data-view="tree" title="Hierarchy / parent-child tree">tree</button>
+      <button class="view-btn" data-view="graph" title="Dependency graph by 'blocks' edges">graph</button>
+      <button class="view-btn" data-view="dashboard" title="Epic progress dashboard">dashboard</button>
+    </div>
+    <button id="toggle-filters" class="icon-btn" title="Filters" aria-expanded="false">☰</button>
+    <button id="expand-all" class="icon-btn" title="Expand all">⊕</button>
+    <button id="collapse-all" class="icon-btn" title="Collapse all">⊖</button>
+    <button id="reload" class="icon-btn" title="Reload from disk">⟳</button>
+  </div>
+  <div class="topbar-row filter-row" id="filter-row">
+    <div class="filters">
+      <label class="chk"><input type="checkbox" data-status="open" checked> open</label>
+      <label class="chk"><input type="checkbox" data-status="in_progress" checked> in_progress</label>
+      <label class="chk"><input type="checkbox" data-status="deferred"> deferred</label>
+      <label class="chk"><input type="checkbox" data-status="closed"> closed</label>
+    </div>
+    <div class="filters">
+      <label class="chk"><input type="checkbox" data-type="epic" checked> epic</label>
+      <label class="chk"><input type="checkbox" data-type="feature" checked> feature</label>
+      <label class="chk"><input type="checkbox" data-type="task" checked> task</label>
+      <label class="chk"><input type="checkbox" data-type="bug" checked> bug</label>
+      <label class="chk"><input type="checkbox" data-type="chore" checked> chore</label>
+    </div>
+    <span id="status" class="status"></span>
+  </div>
+</header>
+
+<main>
+  <aside id="tree" class="tree" aria-label="Issue list"></aside>
+  <section id="detail" class="detail">
+    <button id="back" class="back-btn" aria-label="Back to list">← back</button>
+    <div id="detail-body"><div class="empty">Select an issue to see details.</div></div>
+  </section>
+</main>
+
+<script src="/static/app.js"></script>
+</body>
+</html>

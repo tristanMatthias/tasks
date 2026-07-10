@@ -1,0 +1,43 @@
+# systemd unit for a bare-metal self-host.
+#
+#   sudo useradd --system --home /var/lib/tasks --shell /usr/sbin/nologin tasks
+#   sudo install -o tasks -g tasks -d /var/lib/tasks
+#   sudo install -m0755 bin/tasksd bin/tasks /usr/local/bin/
+#   sudo install -m0600 -o tasks -g tasks .env /etc/tasks.env   # set TASKS_TOKEN here
+#   sudo cp deploy/tasksd.service /etc/systemd/system/
+#   sudo systemctl daemon-reload && sudo systemctl enable --now tasksd
+[Unit]
+Description=tasks — self-hosted task tracker
+Documentation=https://github.com/tristanMatthias/tasks
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=tasks
+Group=tasks
+EnvironmentFile=/etc/tasks.env
+Environment=TASKS_DB=/var/lib/tasks/tasks.db
+Environment=TASKS_LOG_FORMAT=json
+ExecStart=/usr/local/bin/tasksd
+Restart=on-failure
+RestartSec=2s
+TimeoutStopSec=15s
+
+# Hardening.
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectKernelTunables=true
+ProtectControlGroups=true
+RestrictNamespaces=true
+RestrictSUIDSGID=true
+LockPersonality=true
+MemoryDenyWriteExecute=true
+ReadWritePaths=/var/lib/tasks
+StateDirectory=tasks
+
+[Install]
+WantedBy=multi-user.target

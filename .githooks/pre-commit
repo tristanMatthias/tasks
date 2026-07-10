@@ -1,0 +1,6 @@
+#!/usr/bin/env bash
+# Pre-commit hook: block the commit unless the coverage gate passes.
+# Enable once with:  git config core.hooksPath .githooks   (or `make hooks`)
+set -euo pipefail
+repo_root="$(git rev-parse --show-toplevel)"
+exec "$repo_root/scripts/check-coverage.sh"

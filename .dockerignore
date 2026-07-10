@@ -1,0 +1,15 @@
+bin/
+data/
+*.db
+*.db-wal
+*.db-shm
+coverage.out
+coverage.html
+.git/
+.githooks/
+.github/
+*.md
+!README.md
+.DS_Store
+docker-compose.yml
+# deploy/ is needed by deploy/render/Dockerfile (entrypoint.sh); keep it in context.

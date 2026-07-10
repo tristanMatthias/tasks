@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- macOS launchd service. Keeps tasksd running and restarts it on crash/login.
+     Install:
+       cp bin/tasksd bin/tasks /usr/local/bin/
+       mkdir -p ~/Library/Application\ Support/tasks
+       # edit TASKS_TOKEN below, then:
+       cp deploy/com.tasks.tasksd.plist ~/Library/LaunchAgents/
+       launchctl load ~/Library/LaunchAgents/com.tasks.tasksd.plist
+     Logs: /tmp/tasksd.out  (stdout+stderr) -->
+<plist version="1.0">
+<dict>
+  <key>Label</key>            <string>com.tasks.tasksd</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/usr/local/bin/tasksd</string>
+  </array>
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>TASKS_ADDR</key>      <string>127.0.0.1:7842</string>
+    <key>TASKS_DB</key>        <string>/Users/YOU/Library/Application Support/tasks/tasks.db</string>
+    <key>TASKS_LOG_FORMAT</key> <string>json</string>
+    <!-- Set a token if you expose this beyond localhost (e.g. via a funnel): -->
+    <!-- <key>TASKS_TOKEN</key> <string>REPLACE_ME</string> -->
+  </dict>
+  <key>RunAtLoad</key>        <true/>
+  <key>KeepAlive</key>        <true/>
+  <key>StandardOutPath</key>  <string>/tmp/tasksd.out</string>
+  <key>StandardErrorPath</key><string>/tmp/tasksd.out</string>
+</dict>
+</plist>

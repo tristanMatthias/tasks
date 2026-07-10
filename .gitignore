@@ -1,0 +1,12 @@
+/bin/
+/data/
+coverage.out
+coverage.raw
+coverage.html
+*.db
+*.db-wal
+*.db-shm
+.DS_Store
+
+# runtime task data (durability lives in the private agenttasks-data repo)
+.beads/

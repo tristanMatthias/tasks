@@ -1,0 +1,44 @@
+# Self-host tasks with Docker Compose.
+#
+#   1. cp .env.example .env  &&  edit .env (set TASKS_TOKEN!)
+#   2. docker compose up -d
+#   3. (optional) point `tailscale funnel 7842` at the host, or run the
+#      tailscale container/sidecar of your choice.
+services:
+  tasks:
+    build:
+      context: .
+      args:
+        VERSION: ${VERSION:-dev}
+    image: ghcr.io/tristanmatthias/tasks:latest
+    container_name: tasks
+    restart: unless-stopped
+    # Bind to localhost on the host by default; front with Tailscale/reverse proxy.
+    ports:
+      - "127.0.0.1:7842:7842"
+    environment:
+      TASKS_ADDR: 0.0.0.0:7842
+      TASKS_DB: /data/tasks.db
+      TASKS_TOKEN: ${TASKS_TOKEN:?set TASKS_TOKEN in .env}
+      TASKS_LOG_FORMAT: ${TASKS_LOG_FORMAT:-json}
+      TASKS_LOG_LEVEL: ${TASKS_LOG_LEVEL:-info}
+      TASKS_RATE_LIMIT: ${TASKS_RATE_LIMIT:-20}
+      TASKS_EXPORT: ${TASKS_EXPORT:-/data/issues.jsonl}
+      TASKS_BEHIND_PROXY: ${TASKS_BEHIND_PROXY:-false}
+    volumes:
+      - tasks-data:/data
+    healthcheck:
+      # Uses the tasks CLI (bundled) as a tiny HTTP client for the probe.
+      test: ["CMD", "/usr/local/bin/tasks", "ready", "-n", "1", "--json"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    security_opt:
+      - no-new-privileges:true
+    read_only: true
+    tmpfs:
+      - /tmp
+
+volumes:
+  tasks-data:
