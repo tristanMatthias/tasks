@@ -688,3 +688,32 @@ mark.hit { background: rgba(224, 175, 104, 0.35); color: inherit; border-radius:
 @media (max-width: 420px) {
   .row { padding-right: 6px; }
 }
+
+/* ---- login overlay ---- */
+.login-overlay {
+  position: fixed; inset: 0; z-index: 1000;
+  display: flex; align-items: center; justify-content: center;
+  background: color-mix(in srgb, var(--bg, #16161e) 82%, transparent);
+  backdrop-filter: blur(3px);
+}
+.login-overlay[hidden] { display: none; }
+.login-card {
+  display: flex; flex-direction: column; gap: 12px;
+  width: min(360px, 90vw); padding: 28px 24px;
+  background: var(--panel, #1a1b26); border: 1px solid var(--border, #2a2b3c);
+  border-radius: 12px; box-shadow: 0 12px 40px rgba(0,0,0,.45);
+}
+.login-brand { font-weight: 700; font-size: 20px; letter-spacing: .04em; color: var(--accent, #7aa2f7); }
+.login-msg { color: var(--fg-dim, #a9b1d6); font-size: 13px; }
+.login-card input {
+  padding: 10px 12px; border-radius: 8px; font-size: 14px;
+  background: var(--bg, #16161e); color: var(--fg, #c0caf5);
+  border: 1px solid var(--border, #2a2b3c);
+}
+.login-card input:focus { outline: none; border-color: var(--accent, #7aa2f7); }
+.login-card button {
+  padding: 10px 12px; border-radius: 8px; font-size: 14px; font-weight: 600; cursor: pointer;
+  background: var(--accent, #7aa2f7); color: #10111a; border: 0;
+}
+.login-card button:disabled { opacity: .6; cursor: default; }
+.login-error { color: var(--err, #f7768e); font-size: 12px; min-height: 14px; }

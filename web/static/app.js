@@ -1313,6 +1313,7 @@ async function reload({ pull = false } = {}) {
   }
   $status.textContent = "loading…";
   const r = await fetch("/api/issues");
+  if (r.status === 401) { showLogin(); return; }
   if (!r.ok) { $status.textContent = "load failed: " + r.status; return; }
   const data = await r.json();
   buildIndex(data.issues);
@@ -1474,6 +1475,63 @@ function bind() {
     if (m !== lastMobile) { lastMobile = m; renderMain(); }
   });
 }
+
+// ---------- login ----------
+const $loginOverlay = document.getElementById("login-overlay");
+const $loginForm = document.getElementById("login-form");
+const $loginToken = document.getElementById("login-token");
+const $loginError = document.getElementById("login-error");
+const $loginMsg = document.getElementById("login-msg");
+const $loginSubmit = document.getElementById("login-submit");
+let loginCustom = false;
+
+async function showLogin() {
+  let mode = "token";
+  try {
+    const r = await fetch("/api/authinfo");
+    if (r.ok) mode = (await r.json()).mode;
+  } catch (_) { /* offline — assume token */ }
+  if (mode === "none") return; // no auth required
+  loginCustom = mode === "custom";
+  if (loginCustom) {
+    // A host (e.g. the hosted SaaS) owns login — nudge the user to (re)authenticate.
+    $loginMsg.textContent = "Authentication required.";
+    $loginToken.style.display = "none";
+    $loginSubmit.textContent = "Reload";
+  } else {
+    $loginMsg.textContent = "Enter your access token to continue.";
+    $loginToken.style.display = "";
+    $loginSubmit.textContent = "Sign in";
+  }
+  $loginOverlay.hidden = false;
+  setTimeout(() => $loginToken.focus(), 40);
+}
+function hideLogin() { $loginOverlay.hidden = true; $loginError.textContent = ""; }
+
+$loginForm.addEventListener("submit", async (e) => {
+  e.preventDefault();
+  $loginError.textContent = "";
+  if (loginCustom) { location.reload(); return; }
+  const token = $loginToken.value.trim();
+  if (!token) { $loginError.textContent = "Token required"; return; }
+  $loginSubmit.disabled = true;
+  try {
+    const r = await fetch("/api/login", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ token }),
+    });
+    if (r.ok) { $loginToken.value = ""; hideLogin(); reload(); }
+    else {
+      const d = await r.json().catch(() => ({}));
+      $loginError.textContent = d.error || ("Sign in failed (" + r.status + ")");
+    }
+  } catch (err) {
+    $loginError.textContent = err.message;
+  } finally {
+    $loginSubmit.disabled = false;
+  }
+});
 
 restoreFromStorage();
 bind();

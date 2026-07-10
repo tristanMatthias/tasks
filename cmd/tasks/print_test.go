@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/tristanMatthias/tasks/internal/model"
+	"github.com/tristanMatthias/tasks/pkg/model"
 )
 
 // capture returns whatever fn writes to os.Stdout.

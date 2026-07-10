@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/tristanMatthias/tasks/internal/store"
+	"github.com/tristanMatthias/tasks/pkg/store"
 )
 
 const fixture = `{"id":"proj-a","title":"a","status":"open","priority":2,"issue_type":"task"}

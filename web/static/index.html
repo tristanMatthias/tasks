@@ -7,6 +7,15 @@
 <link rel="stylesheet" href="/static/styles.css" />
 </head>
 <body>
+<div id="login-overlay" class="login-overlay" hidden>
+  <form id="login-form" class="login-card">
+    <div class="login-brand">tasks</div>
+    <div id="login-msg" class="login-msg">Sign in to continue</div>
+    <input id="login-token" type="password" placeholder="Access token" autocomplete="current-password" />
+    <button id="login-submit" type="submit">Sign in</button>
+    <div id="login-error" class="login-error"></div>
+  </form>
+</div>
 <header class="topbar">
   <div class="topbar-row primary">
     <div class="brand">tasks</div>

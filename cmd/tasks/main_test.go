@@ -9,10 +9,10 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/tristanMatthias/tasks/internal/core"
-	"github.com/tristanMatthias/tasks/internal/httpapi"
-	"github.com/tristanMatthias/tasks/internal/model"
-	"github.com/tristanMatthias/tasks/internal/store"
+	"github.com/tristanMatthias/tasks/pkg/core"
+	"github.com/tristanMatthias/tasks/pkg/httpapi"
+	"github.com/tristanMatthias/tasks/pkg/model"
+	"github.com/tristanMatthias/tasks/pkg/store"
 	"github.com/tristanMatthias/tasks/web"
 )
 

@@ -22,14 +22,14 @@ import (
 	"path/filepath"
 	"syscall"
 
-	"github.com/tristanMatthias/tasks/internal/buildinfo"
 	"github.com/tristanMatthias/tasks/internal/config"
-	"github.com/tristanMatthias/tasks/internal/core"
-	"github.com/tristanMatthias/tasks/internal/exporter"
-	"github.com/tristanMatthias/tasks/internal/httpapi"
-	"github.com/tristanMatthias/tasks/internal/importer"
-	"github.com/tristanMatthias/tasks/internal/mcpsrv"
-	"github.com/tristanMatthias/tasks/internal/store"
+	"github.com/tristanMatthias/tasks/pkg/buildinfo"
+	"github.com/tristanMatthias/tasks/pkg/core"
+	"github.com/tristanMatthias/tasks/pkg/exporter"
+	"github.com/tristanMatthias/tasks/pkg/httpapi"
+	"github.com/tristanMatthias/tasks/pkg/importer"
+	"github.com/tristanMatthias/tasks/pkg/mcpsrv"
+	"github.com/tristanMatthias/tasks/pkg/store"
 	"github.com/tristanMatthias/tasks/web"
 )
 
