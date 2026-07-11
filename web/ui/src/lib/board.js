@@ -1,36 +1,44 @@
-// Beads UI — collapsible tree + sequence view.
+// board.js — the task board view engine: index, collapsible tree, dependency
+// graph (barycenter layout + pan/zoom), epic dashboard, detail pane, markdown,
+// URL routing, and persistence. Ported verbatim from the original vanilla UI so
+// the tree/graph/detail stay pixel- and behavior-identical; the surrounding
+// chrome (topbar, filters, modals, theming) is now Svelte + DaisyUI.
+//
+// The engine renders into two host elements (the list/graph area and the detail
+// pane) supplied via init(), and talks to the shell through callbacks:
+//   onStatus(text)        — status line ("N shown / M total", "loading…")
+//   onAuthRequired()      — a 401 was hit; the shell should show the login flow
+//   onSelect(id)          — an item was selected (shell reveals detail on mobile)
+//   onState()             — persisted view state changed (shell may re-sync UI)
 
 const state = {
   issues: [],
   byId: new Map(),
-  children: new Map(),        // parentId -> [childId, ...]
-  blockers: new Map(),        // id -> [ids that must finish before this one]
-  unblocks: new Map(),        // id -> [ids that this issue unblocks (reverse of blockers)]
+  children: new Map(),
+  blockers: new Map(),
+  unblocks: new Map(),
   roots: [],
-  collapsed: new Set(),       // tree-pane node ids that are collapsed
-  detailCollapsed: new Set(), // detail-pane subtree collapse state (independent)
+  collapsed: new Set(),
+  detailCollapsed: new Set(),
   selected: null,
   query: "",
   statuses: new Set(["open", "in_progress"]),
   types: new Set(["epic", "feature", "task", "bug", "chore"]),
-  view: "tree",               // "tree" | "graph"
-  edgeTypes: new Set(["blocks"]),  // which edge types feed the graph view
-  simpleGraph: false,         // graph: hide (vs dim) nodes outside the selection's subgraph
+  view: "tree",
+  edgeTypes: new Set(["blocks"]),
+  simpleGraph: false,
+  showDetail: false,
 };
 
-const $tree = document.getElementById("tree");
-const $detail = document.getElementById("detail-body");
-const $search = document.getElementById("search");
-const $status = document.getElementById("status");
-const $back = document.getElementById("back");
-const $filterRow = document.getElementById("filter-row");
-const $toggleFilters = document.getElementById("toggle-filters");
-const $searchClear = document.getElementById("search-clear");
-const $searchWrap = $search.parentElement;
+let treeEl = null;
+let detailEl = null;
+const cb = {};
 
 const isMobile = () => window.matchMedia("(max-width: 760px)").matches;
+const STATE_KEY = "tasks-ui-state-v3";
 
-const STATE_KEY = "beads-ui-state-v2";
+function setStatus(t) { cb.onStatus && cb.onStatus(t); }
+function setShowDetail(v) { state.showDetail = v; cb.onDetailVisible && cb.onDetailVisible(v); }
 
 function saveState() {
   try {
@@ -44,22 +52,18 @@ function saveState() {
       view: state.view,
       edgeTypes: [...state.edgeTypes],
       simpleGraph: state.simpleGraph,
-      showDetail: document.body.classList.contains("show-detail"),
-      scrollTree: $tree.scrollTop || 0,
+      showDetail: state.showDetail,
+      scrollTree: (treeEl && treeEl.scrollTop) || 0,
     }));
-  } catch (_) { /* quota / private mode — ignore */ }
+  } catch (_) { /* quota / private mode */ }
+  cb.onState && cb.onState();
 }
 
 function loadState() {
   try {
     const raw = localStorage.getItem(STATE_KEY);
-    if (!raw) return null;
-    return JSON.parse(raw);
+    return raw ? JSON.parse(raw) : null;
   } catch (_) { return null; }
-}
-
-function syncSearchClear() {
-  $searchWrap.classList.toggle("has-value", !!$search.value);
 }
 
 // ---------- index ----------
@@ -76,9 +80,7 @@ function buildIndex(issues) {
     let parent = null;
     for (const d of (it.dependencies || [])) {
       if (d.type === "parent-child" || d.type === "parent") {
-        if (d.depends_on_id && d.depends_on_id !== it.id) {
-          parent = d.depends_on_id;
-        }
+        if (d.depends_on_id && d.depends_on_id !== it.id) parent = d.depends_on_id;
       }
       if (d.type === "blocks" && d.depends_on_id) {
         const arr = state.blockers.get(it.id) || [];
@@ -130,8 +132,7 @@ function computeVisible() {
   const visit = (id) => {
     if (subtree.has(id)) return subtree.get(id);
     let any = ownPass.get(id) === true;
-    const kids = state.children.get(id) || [];
-    for (const k of kids) if (visit(k)) any = true;
+    for (const k of (state.children.get(id) || [])) if (visit(k)) any = true;
     subtree.set(id, any);
     return any;
   };
@@ -151,9 +152,6 @@ function shortId(id) {
   const i = id.lastIndexOf("-");
   return i >= 0 ? id.slice(i + 1) : id;
 }
-// Natural (human) ordering: compare digit runs numerically so ps3t.2 < ps3t.11.
-// Splits each string into alternating number / non-number chunks and compares
-// chunk-by-chunk — numbers as integers, text lexically.
 function naturalCompare(a, b) {
   const ax = String(a).match(/\d+|\D+/g) || [];
   const bx = String(b).match(/\d+|\D+/g) || [];
@@ -190,7 +188,6 @@ function parentOf(id) {
 }
 
 // ---------- markdown ----------
-// Minimal safe markdown: escapes HTML first, then injects tags.
 function renderMarkdown(src) {
   if (!src) return "";
   let s = String(src).replace(/\r\n?/g, "\n");
@@ -215,14 +212,11 @@ function renderMarkdown(src) {
   s = s.replace(/^###\s+(.+)$/gm, "<h3>$1</h3>");
   s = s.replace(/^##\s+(.+)$/gm, "<h2>$1</h2>");
   s = s.replace(/^#\s+(.+)$/gm, "<h1>$1</h1>");
-
   s = s.replace(/^(?:-{3,}|\*{3,}|_{3,})\s*$/gm, "<hr>");
-
   s = s.replace(/(?:^&gt;\s?.*(?:\n|$))+/gm, m => {
     const inner = m.replace(/^&gt;\s?/gm, "").replace(/\n$/, "");
     return `<blockquote>${inner}</blockquote>\n`;
   });
-
   s = s.replace(/\*\*([^*\n]+)\*\*/g, "<strong>$1</strong>");
   s = s.replace(/(^|[^*])\*([^*\n]+)\*/g, "$1<em>$2</em>");
   s = s.replace(/\[([^\]]+)\]\(([^)\s]+)\)/g, (_, text, href) =>
@@ -263,7 +257,6 @@ function renderMarkdown(src) {
 
   s = s.replace(/ INLINECODE(\d+) /g, (_, n) => inlineCode[+n]);
   s = s.replace(/ CODEBLOCK(\d+) /g, (_, n) => codeBlocks[+n]);
-
   return s;
 }
 
@@ -286,8 +279,8 @@ function renderTree() {
   teardownGraph();
   const { subtree } = computeVisible();
   const q = state.query.trim().toLowerCase();
-  $tree.className = "tree";
-  $tree.innerHTML = "";
+  treeEl.className = "tree";
+  treeEl.innerHTML = "";
 
   const frag = document.createDocumentFragment();
   let shown = 0;
@@ -344,12 +337,10 @@ function renderTree() {
     row.addEventListener("click", () => {
       state.selected = id;
       renderDetail(id);
-      document.querySelectorAll(".row.selected,.srow.selected").forEach(r => r.classList.remove("selected"));
+      treeEl.querySelectorAll(".row.selected,.srow.selected").forEach(r => r.classList.remove("selected"));
       row.classList.add("selected");
-      if (isMobile()) {
-        document.body.classList.add("show-detail");
-        $detail.parentElement.scrollTop = 0;
-      }
+      if (isMobile()) setShowDetail(true);
+      cb.onSelect && cb.onSelect(id);
       syncUrl(id);
       saveState();
     });
@@ -366,7 +357,6 @@ function renderTree() {
       }
       node.append(childrenEl);
     }
-
     return node;
   };
 
@@ -375,12 +365,11 @@ function renderTree() {
     if (n) frag.append(n);
   }
 
-  $tree.append(frag);
-  $status.textContent = `${shown} shown / ${state.issues.length} total`;
+  treeEl.append(frag);
+  setStatus(`${shown} shown / ${state.issues.length} total`);
 }
 
 // ---------- graph view ----------
-// Predecessors / successors based on currently selected edge types.
 function gPredecessors(id) {
   const out = [];
   if (state.edgeTypes.has("blocks")) {
@@ -451,17 +440,16 @@ function renderGraphLegend({ rows = 0, nodes = 0 } = {}) {
       renderGraph();
     });
   });
-  $tree.append(legend);
+  treeEl.append(legend);
 }
 
 function renderGraph() {
   teardownGraph();
-  $tree.className = "tree graph";
-  $tree.innerHTML = "";
+  treeEl.className = "tree graph";
+  treeEl.innerHTML = "";
 
   const q = state.query.trim().toLowerCase();
 
-  // Same visibility filter as tree.
   const visible = new Set();
   for (const it of state.issues) {
     if (!state.statuses.has(it.status)) continue;
@@ -473,8 +461,6 @@ function renderGraph() {
     visible.add(it.id);
   }
 
-  // Only render items that participate in at least one edge of the selected
-  // type(s) to/from another visible item.
   const inGraph = new Set();
   for (const id of visible) {
     const hasPred = gPredecessors(id).some(p => visible.has(p.id));
@@ -488,8 +474,8 @@ function renderGraph() {
     const types = [...state.edgeTypes].join(" + ") || "(no edge types)";
     empty.textContent = `No ${types} edges among the visible items. Toggle filters or edge types above to widen the set.`;
     renderGraphLegend();
-    $tree.append(empty);
-    $status.textContent = `0 in graph / ${visible.size} visible / ${state.issues.length} total`;
+    treeEl.append(empty);
+    setStatus(`0 in graph / ${visible.size} visible / ${state.issues.length} total`);
     return;
   }
 
@@ -502,7 +488,6 @@ function renderGraph() {
   }
   const sortedLayers = [...byLayer.keys()].sort((a, b) => a - b);
 
-  // Initial sort: priority then id (stable starting point).
   const initSort = (a, b) => {
     const ia = state.byId.get(a), ib = state.byId.get(b);
     const pa = ia.priority ?? 9, pb = ib.priority ?? 9;
@@ -511,12 +496,9 @@ function renderGraph() {
   };
   for (const L of sortedLayers) byLayer.get(L).sort(initSort);
 
-  // Barycenter passes to minimize edge crossings.
   const position = new Map();
   const reindex = () => {
-    for (const L of sortedLayers) {
-      byLayer.get(L).forEach((id, i) => position.set(id, i));
-    }
+    for (const L of sortedLayers) byLayer.get(L).forEach((id, i) => position.set(id, i));
   };
   reindex();
   const baryUp = id => {
@@ -540,7 +522,6 @@ function renderGraph() {
     }
   }
 
-  // Coordinate layout.
   const NW = 210, NH = 56, XGAP = 28, YGAP = 64, PAD = 24;
   const maxCount = Math.max(...sortedLayers.map(L => byLayer.get(L).length));
   const W = Math.max(420, PAD * 2 + maxCount * (NW + XGAP) - XGAP);
@@ -559,7 +540,7 @@ function renderGraph() {
 
   const canvas = document.createElement("div");
   canvas.className = "graph-canvas";
-  $tree.append(canvas);
+  treeEl.append(canvas);
 
   const NS = "http://www.w3.org/2000/svg";
   const svg = document.createElementNS(NS, "svg");
@@ -569,30 +550,19 @@ function renderGraph() {
 
   const defs = document.createElementNS(NS, "defs");
   defs.innerHTML = `
-    <marker id="arrow"        viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto">
-      <path d="M 0 0 L 10 5 L 0 10 z" fill="#5b6378"/>
-    </marker>
-    <marker id="arrow-blocks" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto">
-      <path d="M 0 0 L 10 5 L 0 10 z" fill="#e0af68"/>
-    </marker>
-    <marker id="arrow-parent" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto">
-      <path d="M 0 0 L 10 5 L 0 10 z" fill="#bb9af7"/>
-    </marker>
-    <marker id="arrow-hl"     viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto">
-      <path d="M 0 0 L 10 5 L 0 10 z" fill="#7aa2f7"/>
-    </marker>
-    <marker id="arrow-up"     viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto">
-      <path d="M 0 0 L 10 5 L 0 10 z" fill="#f7768e"/>
-    </marker>
+    <marker id="arrow"        viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M 0 0 L 10 5 L 0 10 z" fill="#5b6378"/></marker>
+    <marker id="arrow-blocks" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M 0 0 L 10 5 L 0 10 z" fill="#e0af68"/></marker>
+    <marker id="arrow-parent" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M 0 0 L 10 5 L 0 10 z" fill="#bb9af7"/></marker>
+    <marker id="arrow-hl"     viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M 0 0 L 10 5 L 0 10 z" fill="#7aa2f7"/></marker>
+    <marker id="arrow-up"     viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M 0 0 L 10 5 L 0 10 z" fill="#f7768e"/></marker>
   `;
   svg.append(defs);
   svg.append(viewport);
 
   const edgeEls = [];
   const nodeEls = new Map();
-  const edgeList = []; // {src, dst, el}
+  const edgeList = [];
 
-  // Bezier from bottom-center of a to top-center of b (a,b are {x,y} of a node).
   const edgePath = (a, b) => {
     const x1 = a.x + NW / 2, y1 = a.y + NH;
     const x2 = b.x + NW / 2, y2 = b.y;
@@ -600,14 +570,13 @@ function renderGraph() {
     return `M${x1},${y1} C${x1},${mid} ${x2},${mid} ${x2},${y2}`;
   };
 
-  // Edges first so they render under nodes. Dedup (src, dst) pairs.
   const drawn = new Set();
   for (const src of inGraph) {
     const succs = gSuccessors(src).filter(s => inGraph.has(s.id));
     const a = coords.get(src);
     for (const succ of succs) {
       const t = succ.id;
-      const key = `${src} ${t} ${succ.type}`;
+      const key = `${src} ${t} ${succ.type}`;
       if (drawn.has(key)) continue;
       drawn.add(key);
       const b = coords.get(t);
@@ -621,7 +590,6 @@ function renderGraph() {
     }
   }
 
-  // Nodes.
   for (const id of inGraph) {
     const it = state.byId.get(id);
     const { x, y } = coords.get(id);
@@ -675,10 +643,8 @@ function renderGraph() {
       g.classList.add("selected");
       const keep = highlightGraph(id);
       if (state.simpleGraph) { applyLayout(keep); if (keep) fitToNodes(keep); }
-      if (isMobile()) {
-        document.body.classList.add("show-detail");
-        $detail.parentElement.scrollTop = 0;
-      }
+      if (isMobile()) setShowDetail(true);
+      cb.onSelect && cb.onSelect(id);
       syncUrl(id);
       saveState();
     });
@@ -687,10 +653,7 @@ function renderGraph() {
     nodeEls.set(id, g);
   }
 
-  // Select highlight: focus the node's ancestors+descendants subgraph, tagging
-  // upstream (what blocks focus — red) apart from downstream (what focus blocks
-  // — blue). In normal mode the rest is dimmed; in simple mode it's hidden.
-  // Returns the kept id set (or null when nothing is focused).
+  let lastKeep = null;
   function highlightGraph(focus) {
     const clearMarker = () => {
       for (const e of edgeList) {
@@ -705,8 +668,6 @@ function renderGraph() {
       return null;
     }
     const simple = state.simpleGraph;
-    // Upstream = transitive blockers (predecessors); downstream = things focus
-    // blocks (successors). focus itself is excluded from both.
     const upSet = new Set(), downSet = new Set();
     const up = [focus];
     while (up.length) {
@@ -733,8 +694,6 @@ function renderGraph() {
     });
     for (const e of edgeList) {
       const onPath = keep.has(e.src) && keep.has(e.dst);
-      // Upstream edge: feeds into the focus's blocker chain (dst is focus or an
-      // ancestor). Downstream edge: flows out of focus into what it blocks.
       const isUp = onPath && upSet.has(e.src) && (e.dst === focus || upSet.has(e.dst));
       const isDown = onPath && !isUp && downSet.has(e.dst) && (e.src === focus || downSet.has(e.src));
       e.el.classList.toggle("hl", onPath);
@@ -748,17 +707,10 @@ function renderGraph() {
     lastKeep = keep;
     return keep;
   }
-  let lastKeep = null;
 
-  // ----- layout (base vs compacted subgraph for simple mode) -----
-  // curLayout is the positions currently applied to the DOM (base coords, or a
-  // compacted layout of the selected subgraph when simple mode is active).
   let curLayout = coords;
-
-  // Left-align + vertically compact just the kept nodes: drop empty layers,
-  // pack each remaining row from the left edge, preserving left→right order.
   const compactLayout = (keep) => {
-    const rows = new Map(); // layer -> [ids]
+    const rows = new Map();
     for (const id of keep) {
       const L = layers.get(id) ?? 0;
       if (!rows.has(L)) rows.set(L, []);
@@ -773,10 +725,6 @@ function renderGraph() {
     });
     return out;
   };
-
-  // Reposition every node + edge from a layout. In simple mode with a focus,
-  // the kept subgraph is compacted; everyone else falls back to base coords
-  // (they're hidden anyway). Records the applied layout in curLayout.
   const applyLayout = (keep) => {
     const layout = new Map(coords);
     if (state.simpleGraph && keep && keep.size) {
@@ -795,10 +743,8 @@ function renderGraph() {
 
   canvas.append(svg);
 
-  // ----- pan / zoom -----
   const view = { tx: 0, ty: 0, s: 1 };
   const MIN_S = 0.25, MAX_S = 3;
-
   const applyView = () => {
     viewport.setAttribute("transform", `translate(${view.tx} ${view.ty}) scale(${view.s})`);
     const gs = 24 * view.s;
@@ -822,10 +768,9 @@ function renderGraph() {
     const pad = 24;
     const sx = (r.width - pad * 2) / W;
     const sy = (r.height - pad * 2) / H;
-    const s = Math.min(sx, sy, 1.5); // never absurdly upscale on fit
+    const s = Math.min(sx, sy, 1.5);
     setView((r.width - W * s) / 2, (r.height - H * s) / 2, s);
   };
-  // Fit the view to just the given node ids (simple mode: frame the subgraph).
   const fitToNodes = (ids) => {
     const r = canvas.getBoundingClientRect();
     if (!r.width || !r.height || !ids || !ids.size) return fitView();
@@ -846,7 +791,6 @@ function renderGraph() {
     const r = canvas.getBoundingClientRect();
     zoomAt(r.width / 2, r.height / 2, factor);
   };
-
   const updateSize = () => {
     const r = canvas.getBoundingClientRect();
     if (!r.width || !r.height) return;
@@ -857,19 +801,15 @@ function renderGraph() {
 
   const ro = new ResizeObserver(updateSize);
   ro.observe(canvas);
-
-  // First fit after layout settles (frame the subgraph if simple mode is on).
   requestAnimationFrame(() => {
     updateSize();
     if (state.simpleGraph && lastKeep) fitToNodes(lastKeep);
     else fitView();
   });
 
-  // ----- pointer events: drag-to-pan and pinch-to-zoom -----
   const pointers = new Map();
   let panAnchor = null;
   let pinchAnchor = null;
-
   const onDown = (e) => {
     pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
     if (pointers.size === 1) {
@@ -883,9 +823,7 @@ function renderGraph() {
         startDist: Math.hypot(a.x - b.x, a.y - b.y) || 1,
         startMx: (a.x + b.x) / 2 - rect.left,
         startMy: (a.y + b.y) / 2 - rect.top,
-        startScale: view.s,
-        startTx: view.tx,
-        startTy: view.ty,
+        startScale: view.s, startTx: view.tx, startTy: view.ty,
       };
       panAnchor = null;
     }
@@ -901,10 +839,8 @@ function renderGraph() {
       const factor = dist / pinchAnchor.startDist;
       const ns = Math.max(MIN_S, Math.min(MAX_S, pinchAnchor.startScale * factor));
       const rect = canvas.getBoundingClientRect();
-      // world point under start midpoint
       const wx = (pinchAnchor.startMx - pinchAnchor.startTx) / pinchAnchor.startScale;
       const wy = (pinchAnchor.startMy - pinchAnchor.startTy) / pinchAnchor.startScale;
-      // current midpoint pixel
       const cmx = (a.x + b.x) / 2 - rect.left;
       const cmy = (a.y + b.y) / 2 - rect.top;
       setView(cmx - ns * wx, cmy - ns * wy, ns);
@@ -921,21 +857,18 @@ function renderGraph() {
       pinchAnchor = null;
     }
   };
-
   const onWheel = (e) => {
     e.preventDefault();
     const r = canvas.getBoundingClientRect();
     const factor = Math.exp(-e.deltaY * 0.0015);
     zoomAt(e.clientX - r.left, e.clientY - r.top, factor);
   };
-
   canvas.addEventListener("pointerdown", onDown);
   window.addEventListener("pointermove", onMove);
   window.addEventListener("pointerup", onUp);
   window.addEventListener("pointercancel", onUp);
   canvas.addEventListener("wheel", onWheel, { passive: false });
 
-  // ----- toolbar -----
   const tools = document.createElement("div");
   tools.className = "graph-tools";
   tools.innerHTML = `
@@ -952,7 +885,7 @@ function renderGraph() {
     syncSimpleBtn();
     const focus = state.selected && nodeEls.has(state.selected) ? state.selected : null;
     const keep = highlightGraph(focus);
-    applyLayout(keep);                       // compact subgraph, or restore base
+    applyLayout(keep);
     if (state.simpleGraph && keep) fitToNodes(keep);
     else fitView();
     saveState();
@@ -962,7 +895,6 @@ function renderGraph() {
   tools.querySelector("[data-zout]").addEventListener("click", () => zoomCentered(0.8));
   canvas.append(tools);
 
-  // Double-tap / double-click to fit
   canvas.addEventListener("dblclick", (e) => {
     if (e.target.closest(".gnode")) return;
     fitView();
@@ -980,7 +912,7 @@ function renderGraph() {
     if (state.simpleGraph) applyLayout(keep);
   }
 
-  $status.textContent = `${inGraph.size} in graph / ${visible.size} visible / ${state.issues.length} total`;
+  setStatus(`${inGraph.size} in graph / ${visible.size} visible / ${state.issues.length} total`);
 }
 
 function renderMain() {
@@ -989,9 +921,7 @@ function renderMain() {
   else renderTree();
 }
 
-// ---------- dashboard: epic progress ----------
-// Which progress bucket an issue falls in. Precedence: done → active →
-// blocked (open with an unfinished blocker) → deferred → open/ready.
+// ---------- dashboard ----------
 function progressCategory(id) {
   const it = state.byId.get(id);
   if (!it) return "open";
@@ -1006,50 +936,42 @@ function progressCategory(id) {
   return "open";
 }
 
-// Left→right: done first (bar fills from the left), then active/todo states.
 const PROGRESS_SEGMENTS = [
-  { key: "closed",      label: "done" },
+  { key: "closed", label: "done" },
   { key: "in_progress", label: "in progress" },
-  { key: "blocked",     label: "blocked" },
-  { key: "open",        label: "open" },
-  { key: "deferred",    label: "deferred" },
+  { key: "blocked", label: "blocked" },
+  { key: "open", label: "open" },
+  { key: "deferred", label: "deferred" },
 ];
 
 function renderDashboard() {
   teardownGraph();
-  $tree.className = "tree dashboard";
-  $tree.innerHTML = "";
+  treeEl.className = "tree dashboard";
+  treeEl.innerHTML = "";
 
-  // Every top-level epic (a root whose type is epic), regardless of filters —
-  // the dashboard is a complete overview.
   const epics = state.roots.filter(id => (state.byId.get(id) || {}).issue_type === "epic");
-
   if (!epics.length) {
     const empty = document.createElement("div");
     empty.className = "dash-empty";
     empty.textContent = "No top-level epics found.";
-    $tree.append(empty);
-    $status.textContent = `0 epics / ${state.issues.length} total`;
+    treeEl.append(empty);
+    setStatus(`0 epics / ${state.issues.length} total`);
     return;
   }
 
   const frag = document.createDocumentFragment();
   for (const epicId of epics) {
     const epic = state.byId.get(epicId);
-    const kids = allDescendants([epicId]); // COMPLETE recursive child set
+    const kids = allDescendants([epicId]);
     const total = kids.length;
     const counts = { closed: 0, in_progress: 0, blocked: 0, open: 0, deferred: 0 };
     for (const k of kids) counts[progressCategory(k)]++;
     const pct = total ? Math.round((100 * counts.closed) / total) : 0;
 
-    const segs = PROGRESS_SEGMENTS
-      .filter(s => counts[s.key] > 0)
-      .map(s => `<span class="dseg ${s.key}" style="width:${(100 * counts[s.key]) / total}%" title="${counts[s.key]} ${s.label}"></span>`)
-      .join("");
-    const legend = PROGRESS_SEGMENTS
-      .filter(s => counts[s.key] > 0)
-      .map(s => `<span class="dleg"><span class="dswatch ${s.key}"></span>${counts[s.key]} ${s.label}</span>`)
-      .join("");
+    const segs = PROGRESS_SEGMENTS.filter(s => counts[s.key] > 0)
+      .map(s => `<span class="dseg ${s.key}" style="width:${(100 * counts[s.key]) / total}%" title="${counts[s.key]} ${s.label}"></span>`).join("");
+    const legend = PROGRESS_SEGMENTS.filter(s => counts[s.key] > 0)
+      .map(s => `<span class="dleg"><span class="dswatch ${s.key}"></span>${counts[s.key]} ${s.label}</span>`).join("");
 
     const card = document.createElement("div");
     card.className = "dash-card" + (state.selected === epicId ? " selected" : "");
@@ -1065,45 +987,37 @@ function renderDashboard() {
       <div class="dcounts">
         <span class="dtotal">${counts.closed}/${total} done</span>
         ${total ? legend : '<span class="dleg">no children</span>'}
-      </div>
-    `;
+      </div>`;
     card.addEventListener("click", () => {
       state.selected = epicId;
       renderDetail(epicId);
-      $tree.querySelectorAll(".dash-card.selected").forEach(c => c.classList.remove("selected"));
+      treeEl.querySelectorAll(".dash-card.selected").forEach(c => c.classList.remove("selected"));
       card.classList.add("selected");
-      if (isMobile()) { document.body.classList.add("show-detail"); $detail.parentElement.scrollTop = 0; }
+      if (isMobile()) setShowDetail(true);
+      cb.onSelect && cb.onSelect(epicId);
       syncUrl(epicId);
       saveState();
     });
     frag.append(card);
   }
-  $tree.append(frag);
-  $status.textContent = `${epics.length} epic${epics.length === 1 ? "" : "s"} / ${state.issues.length} total`;
+  treeEl.append(frag);
+  setStatus(`${epics.length} epic${epics.length === 1 ? "" : "s"} / ${state.issues.length} total`);
 }
 
-// ---------- detail pane ----------
-// ---------- routing (URL hash <-> selection) ----------
-// The selected issue id lives in the URL hash (e.g. #ps3t.1.1) so browser
-// back/forward walk the selection history and links are deep-linkable.
+// ---------- routing ----------
 function hashId() {
   const h = location.hash.replace(/^#/, "");
   return h ? decodeURIComponent(h) : null;
 }
-
-// Reflect a selection in the URL. push (default) adds a history entry;
-// replace stamps the current entry without adding one (initial load / refresh).
 function syncUrl(id, { replace = false } = {}) {
   const want = id ? "#" + encodeURIComponent(id) : "";
-  if (!replace && location.hash === want) return; // already here — no dup entry
+  if (!replace && location.hash === want) return;
   const href = id ? want : location.pathname + location.search;
   const st = { id: id || null };
   if (replace) history.replaceState(st, "", href);
   else history.pushState(st, "", href);
 }
-
 function navigateTo(target, { push = true } = {}) {
-  // Expand ancestors in tree view so the target is visible.
   let cur = target;
   while (cur) {
     const next = parentOf(cur);
@@ -1113,17 +1027,15 @@ function navigateTo(target, { push = true } = {}) {
   state.selected = target;
   renderMain();
   renderDetail(target);
-  const row = $tree.querySelector(`[data-id="${cssEscape(target)}"]`);
+  const row = treeEl.querySelector(`[data-id="${cssEscape(target)}"]`);
   if (row) row.scrollIntoView({ block: "center", behavior: "smooth" });
   if (push) syncUrl(target);
   saveState();
 }
-
 function allDescendants(rootIds) {
   const out = [];
   const walk = (i) => {
-    const kids = state.children.get(i) || [];
-    for (const k of kids) { out.push(k); walk(k); }
+    for (const k of (state.children.get(i) || [])) { out.push(k); walk(k); }
   };
   for (const r of rootIds) walk(r);
   return out;
@@ -1140,7 +1052,6 @@ function renderDetailChildren(host, rootIds) {
 
     const node = document.createElement("div");
     node.className = "dnode";
-
     const row = document.createElement("div");
     row.className = "drow " + (it.status === "closed" ? "closed" : "");
     row.style.paddingLeft = (depth * 14) + "px";
@@ -1168,16 +1079,13 @@ function renderDetailChildren(host, rootIds) {
     title.textContent = it.title || "(untitled)";
 
     row.append(caret, makeStatusDot(it), makeTypeBadge(it), link, title);
-
     if (hasKids) {
       const count = document.createElement("span");
       count.className = "count";
       count.textContent = `(${kids.length})`;
       row.append(count);
     }
-
     node.append(row);
-
     if (hasKids && !collapsed) {
       const childrenEl = document.createElement("div");
       childrenEl.className = "dchildren";
@@ -1189,7 +1097,6 @@ function renderDetailChildren(host, rootIds) {
     }
     return node;
   };
-
   for (const r of rootIds) {
     const n = buildNode(r, 0);
     if (n) host.append(n);
@@ -1199,10 +1106,9 @@ function renderDetailChildren(host, rootIds) {
 function renderDetail(id) {
   const it = state.byId.get(id);
   if (!it) {
-    $detail.innerHTML = `<div class="empty">Unknown issue ${escapeHtml(id)}</div>`;
+    detailEl.innerHTML = `<div class="empty">Unknown issue ${escapeHtml(id)}</div>`;
     return;
   }
-
   const deps = (it.dependencies || []);
   const parent = deps.find(d => d.type === "parent-child" || d.type === "parent");
   const blocks = deps.filter(d => d.type === "blocks");
@@ -1214,15 +1120,10 @@ function renderDetail(id) {
       if (d.depends_on_id === id) dependents.push({ id: other.id, type: d.type });
     }
   }
-
   const childIds = state.children.get(id) || [];
-
   const countDescendants = (rootId) => {
     let n = 0;
-    const walk = (i) => {
-      const kids = state.children.get(i) || [];
-      for (const k of kids) { n++; walk(k); }
-    };
+    const walk = (i) => { for (const k of (state.children.get(i) || [])) { n++; walk(k); } };
     walk(rootId);
     return n;
   };
@@ -1232,7 +1133,7 @@ function renderDetail(id) {
     ? `<ul>${ids.map(x => `<li><a href="#" data-go="${escapeHtml(x)}">${escapeHtml(shortId(x))}</a> — ${escapeHtml((state.byId.get(x) || {}).title || "?")}</li>`).join("")}</ul>`
     : `<div class="empty">none</div>`;
 
-  $detail.innerHTML = `
+  detailEl.innerHTML = `
     <h1>${escapeHtml(it.title || "(untitled)")}</h1>
     <div class="sub">
       <span class="typebadge ${it.issue_type}">${it.issue_type}</span>
@@ -1244,17 +1145,14 @@ function renderDetail(id) {
       ${it.updated_at ? `<span>updated ${escapeHtml(it.updated_at)}</span>` : ""}
       ${it.closed_at ? `<span>closed ${escapeHtml(it.closed_at)}</span>` : ""}
     </div>
-
     ${it.description ? `<section><h2>description</h2><div class="desc md">${renderMarkdown(it.description)}</div></section>` : ""}
     ${it.acceptance_criteria ? `<section><h2>acceptance criteria</h2><div class="desc md">${renderMarkdown(it.acceptance_criteria)}</div></section>` : ""}
     ${it.design ? `<section><h2>design</h2><div class="desc md">${renderMarkdown(it.design)}</div></section>` : ""}
     ${it.notes ? `<section><h2>notes</h2><div class="desc md">${renderMarkdown(it.notes)}</div></section>` : ""}
     ${it.close_reason ? `<section><h2>close reason</h2><div class="desc md">${renderMarkdown(it.close_reason)}</div></section>` : ""}
-
     <section class="deps">
       <h2>parent</h2>
       ${parent ? `<ul><li><a href="#" data-go="${escapeHtml(parent.depends_on_id)}">${escapeHtml(shortId(parent.depends_on_id))}</a> — ${escapeHtml((state.byId.get(parent.depends_on_id) || {}).title || "?")}</li></ul>` : `<div class="empty">none (root)</div>`}
-
       <div class="children-head">
         <h2>children (${childIds.length}${descendantCount > childIds.length ? ` / ${descendantCount} total` : ""})</h2>
         ${childIds.length ? `<div class="children-actions">
@@ -1263,71 +1161,62 @@ function renderDetail(id) {
         </div>` : ""}
       </div>
       <div class="children-tree" id="detail-children"></div>
-
       <h2>blocks (${blocks.length})</h2>
       ${linkList(blocks.map(b => b.depends_on_id))}
-
       <h2>related (${related.length})</h2>
       ${linkList(related.map(b => b.depends_on_id))}
-
       <h2>dependents (${dependents.length})</h2>
       ${dependents.length ? `<ul>${dependents.map(d => `<li><a href="#" data-go="${escapeHtml(d.id)}">${escapeHtml(shortId(d.id))}</a> — ${escapeHtml((state.byId.get(d.id) || {}).title || "?")} <span style="color:var(--fg-faint)">(${escapeHtml(d.type)})</span></li>`).join("")}</ul>` : `<div class="empty">none</div>`}
-    </section>
-  `;
+    </section>`;
 
-  const $childrenTree = $detail.querySelector("#detail-children");
+  const $childrenTree = detailEl.querySelector("#detail-children");
   if ($childrenTree && childIds.length) renderDetailChildren($childrenTree, childIds);
 
-  $detail.querySelectorAll("[data-detail-expand]").forEach(b => b.addEventListener("click", () => {
-    for (const id of allDescendants(childIds)) state.detailCollapsed.delete(id);
+  detailEl.querySelectorAll("[data-detail-expand]").forEach(b => b.addEventListener("click", () => {
+    for (const cid of allDescendants(childIds)) state.detailCollapsed.delete(cid);
     if ($childrenTree) renderDetailChildren($childrenTree, childIds);
     saveState();
   }));
-  $detail.querySelectorAll("[data-detail-collapse]").forEach(b => b.addEventListener("click", () => {
-    for (const id of allDescendants(childIds)) state.detailCollapsed.add(id);
+  detailEl.querySelectorAll("[data-detail-collapse]").forEach(b => b.addEventListener("click", () => {
+    for (const cid of allDescendants(childIds)) state.detailCollapsed.add(cid);
     if ($childrenTree) renderDetailChildren($childrenTree, childIds);
     saveState();
   }));
-
-  $detail.querySelectorAll("a[data-go]").forEach(a => {
+  detailEl.querySelectorAll("a[data-go]").forEach(a => {
     if (a.dataset.bound === "1") return;
     a.dataset.bound = "1";
-    a.addEventListener("click", (e) => {
-      e.preventDefault();
-      navigateTo(a.dataset.go);
-    });
+    a.addEventListener("click", (e) => { e.preventDefault(); navigateTo(a.dataset.go); });
   });
 }
 
-// ---------- load / persist / wiring ----------
+// ---------- load / persist ----------
 async function reload({ pull = false } = {}) {
   if (pull) {
-    $status.textContent = "pulling…";
+    setStatus("pulling…");
     try {
       const pr = await fetch("/api/pull", { method: "POST" });
       const pd = await pr.json().catch(() => ({}));
-      if (!pr.ok) $status.textContent = "pull failed: " + (pd.error || pr.status);
-    } catch (e) {
-      $status.textContent = "pull failed: " + e.message;
-    }
+      if (!pr.ok) setStatus("pull failed: " + (pd.error || pr.status));
+    } catch (e) { setStatus("pull failed: " + e.message); }
   }
-  $status.textContent = "loading…";
-  const r = await fetch("/api/issues");
-  if (r.status === 401) { showLogin(); return; }
-  if (!r.ok) { $status.textContent = "load failed: " + r.status; return; }
+  setStatus("loading…");
+  let r;
+  try { r = await fetch("/api/issues"); }
+  catch (e) { setStatus("load failed: " + e.message); return; }
+  if (r.status === 401) { cb.onAuthRequired && cb.onAuthRequired(); return; }
+  if (!r.ok) { setStatus("load failed: " + r.status); return; }
   const data = await r.json();
   buildIndex(data.issues);
 
-  // URL hash wins over the last-saved selection so deep links open the right issue.
   const routeId = hashId();
   const target = (routeId && state.byId.has(routeId)) ? routeId
     : (state.selected && state.byId.has(state.selected)) ? state.selected
-    : null;
+      : null;
 
   if (target) {
-    navigateTo(target, { push: false });   // reveals + renders the row and detail
-    syncUrl(target, { replace: true });    // stamp the current history entry
-    if (routeId && isMobile()) document.body.classList.add("show-detail");
+    navigateTo(target, { push: false });
+    syncUrl(target, { replace: true });
+    if (routeId && isMobile()) setShowDetail(true);
   } else {
     state.selected = null;
     renderMain();
@@ -1335,19 +1224,18 @@ async function reload({ pull = false } = {}) {
 
   const saved = loadState();
   if (!target && saved && typeof saved.scrollTree === "number") {
-    requestAnimationFrame(() => { $tree.scrollTop = saved.scrollTree; });
+    requestAnimationFrame(() => { if (treeEl) treeEl.scrollTop = saved.scrollTree; });
   }
   saveState();
 }
 
 const isView = v => v === "tree" || v === "graph" || v === "dashboard";
 
-function restoreFromStorage() {
+function restore() {
   const urlView = new URLSearchParams(location.search).get("view");
   const saved = loadState();
   if (!saved) {
     if (isView(urlView)) state.view = urlView;
-    setActiveViewBtn();
     return;
   }
   if (typeof saved.query === "string") state.query = saved.query;
@@ -1357,271 +1245,83 @@ function restoreFromStorage() {
   if (Array.isArray(saved.detailCollapsed)) state.detailCollapsed = new Set(saved.detailCollapsed);
   if (typeof saved.selected === "string") state.selected = saved.selected;
   if (isView(saved.view)) state.view = saved.view;
-  else if (saved.view === "sequence") state.view = "graph"; // migrate
+  else if (saved.view === "sequence") state.view = "graph";
   if (Array.isArray(saved.edgeTypes)) state.edgeTypes = new Set(saved.edgeTypes);
   if (typeof saved.simpleGraph === "boolean") state.simpleGraph = saved.simpleGraph;
-  if (isView(urlView)) state.view = urlView; // URL param wins
-
-  $search.value = state.query || "";
-  syncSearchClear();
-  setActiveViewBtn();
-  if (saved.showDetail && isMobile()) document.body.classList.add("show-detail");
+  if (isView(urlView)) state.view = urlView;
+  if (saved.showDetail && isMobile()) state.showDetail = true;
 }
 
-function setActiveViewBtn() {
-  document.querySelectorAll(".view-btn").forEach(b => {
-    b.classList.toggle("active", b.dataset.view === state.view);
-  });
-}
+// ---------- public API ----------
+export function createBoard(opts) {
+  treeEl = opts.treeEl;
+  detailEl = opts.detailEl;
+  Object.assign(cb, opts);
+  restore();
 
-function bind() {
-  $search.addEventListener("input", () => {
-    state.query = $search.value;
-    if (state.query.trim()) state.collapsed.clear();
-    syncSearchClear();
-    renderMain();
-    saveState();
-  });
-
-  $searchClear.addEventListener("click", () => {
-    $search.value = "";
-    state.query = "";
-    syncSearchClear();
-    renderMain();
-    saveState();
-    $search.focus();
-  });
-
-  $search.addEventListener("keydown", (e) => {
-    if (e.key === "Escape" && $search.value) {
-      $searchClear.click();
-      e.preventDefault();
-    }
-  });
-
-  document.querySelectorAll(".filters input[data-status]").forEach(el => {
-    el.checked = state.statuses.has(el.dataset.status);
-    el.addEventListener("change", () => {
-      if (el.checked) state.statuses.add(el.dataset.status);
-      else state.statuses.delete(el.dataset.status);
-      renderMain();
-      saveState();
-    });
-  });
-  document.querySelectorAll(".filters input[data-type]").forEach(el => {
-    el.checked = state.types.has(el.dataset.type);
-    el.addEventListener("change", () => {
-      if (el.checked) state.types.add(el.dataset.type);
-      else state.types.delete(el.dataset.type);
-      renderMain();
-      saveState();
-    });
-  });
-
-  document.querySelectorAll(".view-btn").forEach(b => {
-    b.addEventListener("click", () => {
-      state.view = b.dataset.view;
-      setActiveViewBtn();
-      renderMain();
-      saveState();
-    });
-  });
-
-  document.getElementById("expand-all").addEventListener("click", () => {
-    state.collapsed.clear();
-    renderMain();
-    saveState();
-  });
-  document.getElementById("collapse-all").addEventListener("click", () => {
-    state.collapsed = new Set(state.issues.map(i => i.id));
-    renderMain();
-    saveState();
-  });
-  document.getElementById("reload").addEventListener("click", () => reload({ pull: true }));
-
-  $back.addEventListener("click", () => {
-    document.body.classList.remove("show-detail");
-    saveState();
-  });
-
-  // Browser back/forward walk the selection history (deep links).
-  window.addEventListener("popstate", (e) => {
+  const onPop = (e) => {
     const id = (e.state && e.state.id) || hashId();
     if (id && state.byId.has(id)) {
       navigateTo(id, { push: false });
-      if (isMobile()) document.body.classList.add("show-detail");
+      if (isMobile()) setShowDetail(true);
     } else {
       state.selected = null;
       renderMain();
-      $detail.innerHTML = `<div class="empty">Select an issue to see details.</div>`;
-      document.body.classList.remove("show-detail");
+      detailEl.innerHTML = `<div class="empty">Select an issue to see details.</div>`;
+      setShowDetail(false);
       saveState();
     }
-  });
-
-  $toggleFilters.addEventListener("click", () => {
-    const open = $filterRow.classList.toggle("open");
-    $toggleFilters.setAttribute("aria-expanded", open ? "true" : "false");
-  });
-
-  $tree.addEventListener("scroll", () => {
-    if (bind._scrollTimer) clearTimeout(bind._scrollTimer);
-    bind._scrollTimer = setTimeout(saveState, 200);
-  });
+  };
+  window.addEventListener("popstate", onPop);
 
   let lastMobile = isMobile();
-  window.addEventListener("resize", () => {
+  const onResize = () => {
     const m = isMobile();
     if (m !== lastMobile) { lastMobile = m; renderMain(); }
-  });
+  };
+  window.addEventListener("resize", onResize);
+
+  let scrollTimer = null;
+  const onScroll = () => { clearTimeout(scrollTimer); scrollTimer = setTimeout(saveState, 200); };
+  treeEl.addEventListener("scroll", onScroll);
+
+  return {
+    reload,
+    refresh: renderMain,
+    getState() {
+      return {
+        query: state.query,
+        statuses: new Set(state.statuses),
+        types: new Set(state.types),
+        view: state.view,
+        showDetail: state.showDetail,
+      };
+    },
+    setQuery(q) {
+      state.query = q;
+      if (state.query.trim()) state.collapsed.clear();
+      renderMain();
+      saveState();
+    },
+    setStatus(status, on) {
+      if (on) state.statuses.add(status); else state.statuses.delete(status);
+      renderMain();
+      saveState();
+    },
+    setType(type, on) {
+      if (on) state.types.add(type); else state.types.delete(type);
+      renderMain();
+      saveState();
+    },
+    setView(v) { state.view = v; renderMain(); saveState(); },
+    expandAll() { state.collapsed.clear(); renderMain(); saveState(); },
+    collapseAll() { state.collapsed = new Set(state.issues.map(i => i.id)); renderMain(); saveState(); },
+    back() { setShowDetail(false); saveState(); },
+    destroy() {
+      window.removeEventListener("popstate", onPop);
+      window.removeEventListener("resize", onResize);
+      treeEl.removeEventListener("scroll", onScroll);
+      teardownGraph();
+    },
+  };
 }
-
-// ---------- login ----------
-const $loginOverlay = document.getElementById("login-overlay");
-const $loginForm = document.getElementById("login-form");
-const $loginToken = document.getElementById("login-token");
-const $loginError = document.getElementById("login-error");
-const $loginMsg = document.getElementById("login-msg");
-const $loginSubmit = document.getElementById("login-submit");
-let loginCustom = false;
-
-async function showLogin() {
-  let mode = "token", loginUrl = "";
-  try {
-    const r = await fetch("/api/authinfo");
-    if (r.ok) { const info = await r.json(); mode = info.mode; loginUrl = info.login_url || ""; }
-  } catch (_) { /* offline — assume token */ }
-  if (mode === "none") return; // no auth required
-  loginCustom = mode === "custom";
-  if (loginCustom) {
-    // A host (e.g. the hosted SaaS) owns login — send the user to it.
-    if (loginUrl) { location.href = loginUrl; return; }
-    $loginMsg.textContent = "Authentication required.";
-    $loginToken.style.display = "none";
-    $loginSubmit.textContent = "Reload";
-  } else {
-    $loginMsg.textContent = "Enter your access token to continue.";
-    $loginToken.style.display = "";
-    $loginSubmit.textContent = "Sign in";
-  }
-  $loginOverlay.hidden = false;
-  setTimeout(() => $loginToken.focus(), 40);
-}
-function hideLogin() { $loginOverlay.hidden = true; $loginError.textContent = ""; }
-
-$loginForm.addEventListener("submit", async (e) => {
-  e.preventDefault();
-  $loginError.textContent = "";
-  if (loginCustom) { location.reload(); return; }
-  const token = $loginToken.value.trim();
-  if (!token) { $loginError.textContent = "Token required"; return; }
-  $loginSubmit.disabled = true;
-  try {
-    const r = await fetch("/api/login", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ token }),
-    });
-    if (r.ok) { $loginToken.value = ""; hideLogin(); reload(); }
-    else {
-      const d = await r.json().catch(() => ({}));
-      $loginError.textContent = d.error || ("Sign in failed (" + r.status + ")");
-    }
-  } catch (err) {
-    $loginError.textContent = err.message;
-  } finally {
-    $loginSubmit.disabled = false;
-  }
-});
-
-// ---- API keys pane ----
-const $keysOverlay = document.getElementById("keys-overlay");
-const $keysForm = document.getElementById("keys-form");
-const $keysLabel = document.getElementById("keys-label");
-const $keysList = document.getElementById("keys-list");
-const $keysError = document.getElementById("keys-error");
-const $keysNew = document.getElementById("keys-new");
-const $keysSecret = document.getElementById("keys-secret");
-
-function fmtKeyDate(ts) { return ts ? ts.slice(0, 10) : "—"; }
-
-async function loadKeys() {
-  $keysError.textContent = "";
-  try {
-    const r = await fetch("/api/v1/keys");
-    if (r.status === 401) { hideKeys(); showLogin(); return; }
-    if (!r.ok) { $keysError.textContent = "Failed to load keys (" + r.status + ")"; return; }
-    const keys = await r.json();
-    renderKeys(keys || []);
-  } catch (e) { $keysError.textContent = e.message; }
-}
-
-function renderKeys(keys) {
-  if (!keys.length) { $keysList.innerHTML = '<div class="keys-empty">No keys yet.</div>'; return; }
-  $keysList.innerHTML = "";
-  for (const k of keys) {
-    const row = document.createElement("div");
-    row.className = "keys-row" + (k.revoked_at ? " revoked" : "");
-    const meta = document.createElement("div");
-    meta.className = "keys-meta";
-    const state = k.revoked_at ? "revoked" : "active";
-    meta.innerHTML =
-      '<span class="keys-id">' + escapeHtml(k.id) + "</span>" +
-      '<span class="keys-lbl">' + escapeHtml(k.label || "—") + "</span>" +
-      '<span class="keys-state ' + state + '">' + state + "</span>" +
-      '<span class="keys-dates">created ' + fmtKeyDate(k.created_at) +
-      " · last used " + (k.last_used_at ? fmtKeyDate(k.last_used_at) : "never") + "</span>";
-    row.appendChild(meta);
-    if (!k.revoked_at) {
-      const btn = document.createElement("button");
-      btn.className = "keys-revoke";
-      btn.textContent = "Revoke";
-      btn.onclick = () => revokeKey(k.id);
-      row.appendChild(btn);
-    }
-    $keysList.appendChild(row);
-  }
-}
-
-async function revokeKey(id) {
-  if (!confirm("Revoke key " + id + "? Anything using it stops working immediately.")) return;
-  try {
-    const r = await fetch("/api/v1/keys/" + encodeURIComponent(id) + "/revoke", { method: "POST" });
-    if (!r.ok) { $keysError.textContent = "Revoke failed (" + r.status + ")"; return; }
-    loadKeys();
-  } catch (e) { $keysError.textContent = e.message; }
-}
-
-$keysForm.addEventListener("submit", async (e) => {
-  e.preventDefault();
-  $keysError.textContent = "";
-  try {
-    const r = await fetch("/api/v1/keys", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ label: $keysLabel.value.trim() }),
-    });
-    if (!r.ok) { $keysError.textContent = "Create failed (" + r.status + ")"; return; }
-    const k = await r.json();
-    $keysSecret.textContent = k.secret;
-    $keysNew.hidden = false;
-    $keysLabel.value = "";
-    loadKeys();
-  } catch (e) { $keysError.textContent = e.message; }
-});
-
-document.getElementById("keys-copy").addEventListener("click", async () => {
-  try { await navigator.clipboard.writeText($keysSecret.textContent); } catch (_) {}
-  const b = document.getElementById("keys-copy");
-  b.textContent = "Copied"; setTimeout(() => (b.textContent = "Copy"), 1200);
-});
-
-function openKeys() { $keysNew.hidden = true; $keysOverlay.hidden = false; loadKeys(); }
-function hideKeys() { $keysOverlay.hidden = true; }
-document.getElementById("settings").addEventListener("click", openKeys);
-document.getElementById("keys-close").addEventListener("click", hideKeys);
-$keysOverlay.addEventListener("click", (e) => { if (e.target === $keysOverlay) hideKeys(); });
-
-restoreFromStorage();
-bind();
-reload();

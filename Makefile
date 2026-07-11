@@ -17,11 +17,16 @@ PKG      = github.com/tristanMatthias/tasks/internal/buildinfo
 LDFLAGS  = -s -w -X $(PKG).Version=$(VERSION) -X $(PKG).Commit=$(COMMIT) -X $(PKG).Date=$(DATE)
 IMAGE   ?= ghcr.io/tristanmatthias/tasks
 
-.PHONY: all build tasksd tasks test cover cover-html cover-check hooks vet fmt lint import serve funnel serve-tailnet install docker docker-run clean
+.PHONY: all build ui tasksd tasks test cover cover-html cover-check hooks vet fmt lint import serve funnel serve-tailnet install docker docker-run clean
 
 all: build
 
 build: tasksd tasks
+
+# Build the Svelte UI (Vite) into web/static, which the Go binary embeds. The
+# built output is committed so deploys need no Node toolchain. Run after UI edits.
+ui:
+	cd web/ui && npm install && npm run build
 
 tasksd:
 	$(GO) build -trimpath -ldflags "$(LDFLAGS)" -o $(BINDIR)/tasksd ./cmd/tasksd

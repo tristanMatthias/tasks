@@ -2,7 +2,7 @@ package model
 
 // NaturalLess reports whether a sorts before b using human/natural ordering:
 // digit runs compare numerically (so "ps3t.2" < "ps3t.11"), other runs compare
-// lexically. Mirrors the UI's naturalCompare in web/static/app.js.
+// lexically. Mirrors the UI's naturalCompare in web/ui/src/lib/board.js.
 func NaturalLess(a, b string) bool { return naturalCompare(a, b) < 0 }
 
 func naturalCompare(a, b string) int {

@@ -1,0 +1,115 @@
+@import "tailwindcss";
+@plugin "daisyui" {
+  themes: false;
+}
+
+/* ---- Tokyo Night (default dark) — the current palette, now a swappable theme ---- */
+@plugin "daisyui/theme" {
+  name: "tokyonight";
+  default: true;
+  prefersdark: true;
+  color-scheme: dark;
+  --color-base-100: #0f1115;
+  --color-base-200: #161922;
+  --color-base-300: #1d212c;
+  --color-base-content: #d9deea;
+  --color-primary: #7aa2f7;
+  --color-primary-content: #0b0d12;
+  --color-secondary: #bb9af7;
+  --color-secondary-content: #0b0d12;
+  --color-accent: #7dcfff;
+  --color-accent-content: #0b0d12;
+  --color-neutral: #1d212c;
+  --color-neutral-content: #d9deea;
+  --color-info: #7dcfff;
+  --color-success: #9ece6a;
+  --color-warning: #e0af68;
+  --color-error: #f7768e;
+  --radius-selector: 0.375rem;
+  --radius-field: 0.375rem;
+  --radius-box: 0.625rem;
+  --size-selector: 0.25rem;
+  --size-field: 0.25rem;
+  --border: 1px;
+  --depth: 1;
+  --noise: 0;
+}
+
+/* ---- Daylight (light alternative) ---- */
+@plugin "daisyui/theme" {
+  name: "daylight";
+  prefersdark: false;
+  color-scheme: light;
+  --color-base-100: #ffffff;
+  --color-base-200: #f3f4f8;
+  --color-base-300: #e6e8f0;
+  --color-base-content: #1b2030;
+  --color-primary: #3b5bdb;
+  --color-primary-content: #ffffff;
+  --color-secondary: #7048e8;
+  --color-secondary-content: #ffffff;
+  --color-accent: #0ca5e9;
+  --color-accent-content: #ffffff;
+  --color-neutral: #e6e8f0;
+  --color-neutral-content: #1b2030;
+  --color-info: #0ca5e9;
+  --color-success: #2f9e44;
+  --color-warning: #e8590c;
+  --color-error: #e03131;
+  --radius-selector: 0.375rem;
+  --radius-field: 0.375rem;
+  --radius-box: 0.625rem;
+  --border: 1px;
+}
+
+/* Legacy palette vars consumed by the ported graph/tree CSS. Kept per-theme so
+   those views re-skin with the rest. NOTE: --border is reserved by DaisyUI (a
+   width), so the color equivalent is --border-c. */
+[data-theme="tokyonight"] {
+  --bg: #0f1115;
+  --bg-elev: #161922;
+  --bg-elev-2: #1d212c;
+  --border-c: #2a2f3d;
+  --fg: #d9deea;
+  --fg-dim: #8b93a7;
+  --fg-faint: #5b6378;
+  --accent: #7aa2f7;
+  --accent-2: #bb9af7;
+  --ok: #9ece6a;
+  --warn: #e0af68;
+  --err: #f7768e;
+  --info: #7dcfff;
+  --closed: #565f73;
+}
+[data-theme="daylight"] {
+  --bg: #ffffff;
+  --bg-elev: #f3f4f8;
+  --bg-elev-2: #e6e8f0;
+  --border-c: #d3d7e0;
+  --fg: #1b2030;
+  --fg-dim: #5a6072;
+  --fg-faint: #939ab0;
+  --accent: #3b5bdb;
+  --accent-2: #7048e8;
+  --ok: #2f9e44;
+  --warn: #e8590c;
+  --err: #e03131;
+  --info: #0ca5e9;
+  --closed: #aab0c0;
+}
+
+html,
+body {
+  height: 100%;
+  margin: 0;
+}
+body {
+  font: 13px/1.45 -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Roboto, sans-serif;
+  background: var(--color-base-100);
+  color: var(--color-base-content);
+}
+#app {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}

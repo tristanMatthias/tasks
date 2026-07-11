@@ -7,6 +7,7 @@ import (
 	"net/http/cookiejar"
 	"net/http/httptest"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"testing"
 
@@ -127,9 +128,13 @@ func TestUIEndpoints(t *testing.T) {
 	if code != 200 || !strings.Contains(string(body), "<title>Tasks</title>") {
 		t.Fatalf("index wrong: %d %s", code, firstLine(body))
 	}
-	// static asset
-	if code, _ := do(t, ts, "GET", "/static/app.js", "", ""); code != 200 {
-		t.Fatalf("app.js = %d", code)
+	// static asset — the Vite build references a hashed bundle from index.html.
+	asset := regexp.MustCompile(`/static/assets/[^"']+\.js`).FindString(string(body))
+	if asset == "" {
+		t.Fatalf("no built asset referenced in index: %s", body)
+	}
+	if code, _ := do(t, ts, "GET", asset, "", ""); code != 200 {
+		t.Fatalf("built asset %s = %d", asset, code)
 	}
 	// issues
 	code, body = do(t, ts, "GET", "/api/issues", "", "")
@@ -265,11 +270,17 @@ func firstLine(b []byte) string {
 
 func TestPublicUIAndLoginFlow(t *testing.T) {
 	ts := newServer(t, "tok")
-	// UI assets are PUBLIC (browser must load them to render the login screen).
-	if code, body := do(t, ts, "GET", "/", "", ""); code != 200 || !strings.Contains(string(body), "login-overlay") {
-		t.Fatalf("index should be public with login overlay: %d", code)
+	// UI assets are PUBLIC (browser must load them to render the login screen,
+	// which the SPA renders client-side at #app).
+	code0, body0 := do(t, ts, "GET", "/", "", "")
+	if code0 != 200 || !strings.Contains(string(body0), `id="app"`) {
+		t.Fatalf("index should be public (SPA root): %d", code0)
 	}
-	if code, _ := do(t, ts, "GET", "/static/app.js", "", ""); code != 200 {
+	asset := regexp.MustCompile(`/static/assets/[^"']+\.js`).FindString(string(body0))
+	if asset == "" {
+		t.Fatalf("no built asset referenced in index")
+	}
+	if code, _ := do(t, ts, "GET", asset, "", ""); code != 200 {
 		t.Fatalf("static must be public: %d", code)
 	}
 	// authinfo is public and reports the mode.
