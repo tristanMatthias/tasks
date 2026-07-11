@@ -11,6 +11,7 @@
 package httpapi
 
 import (
+	"bytes"
 	"errors"
 	"io/fs"
 	"log/slog"
@@ -33,6 +34,7 @@ type Server struct {
 	auth                Authenticator
 	loginURL            string
 	resourceMetadataURL string
+	injectHead          string
 	static              fs.FS
 	logger              *slog.Logger
 	mcp                 http.Handler
@@ -76,6 +78,11 @@ type Config struct {
 	// server. Generic OAuth-resource-server support; the AS itself lives in the host.
 	ResourceMetadataURL string
 
+	// InjectHead, when set, is spliced into index.html before </head>. A host uses
+	// it to add e.g. an identity-provider script that keeps a session alive on the
+	// board page; the engine stays agnostic about what it injects.
+	InjectHead string
+
 	MCP http.Handler
 
 	MaxBodyBytes int64
@@ -115,6 +122,7 @@ func New(cfg Config) *Server {
 		auth:                authn,
 		loginURL:            cfg.LoginURL,
 		resourceMetadataURL: cfg.ResourceMetadataURL,
+		injectHead:          cfg.InjectHead,
 		static:              cfg.Static,
 		logger:              logger,
 		mcp:                 cfg.MCP,
@@ -223,6 +231,9 @@ func (s *Server) serveStatic(w http.ResponseWriter, r *http.Request, name, ctype
 	if err != nil {
 		http.NotFound(w, r)
 		return
+	}
+	if name == "index.html" && s.injectHead != "" {
+		data = bytes.Replace(data, []byte("</head>"), append([]byte(s.injectHead), "</head>"...), 1)
 	}
 	w.Header().Set("Content-Type", ctype)
 	w.Header().Set("Cache-Control", "no-store")

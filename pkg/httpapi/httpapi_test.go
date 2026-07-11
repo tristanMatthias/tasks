@@ -121,6 +121,22 @@ func TestNoAuthMode(t *testing.T) {
 	}
 }
 
+func TestInjectHead(t *testing.T) {
+	st, err := store.Open(filepath.Join(t.TempDir(), "t.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { st.Close() })
+	c, _ := core.New(st, core.Options{Prefix: "p"})
+	srv := New(Config{Core: c, Static: web.Static(), InjectHead: `<script id="inject-probe"></script>`})
+	ts := httptest.NewServer(srv.Handler())
+	t.Cleanup(ts.Close)
+	_, body := do(t, ts, "GET", "/", "", "")
+	if !strings.Contains(string(body), `id="inject-probe"`) || !strings.Contains(string(body), "</head>") {
+		t.Fatalf("InjectHead not spliced before </head>: %s", body)
+	}
+}
+
 func TestUIEndpoints(t *testing.T) {
 	ts := newServer(t, "")
 	// index

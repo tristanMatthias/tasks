@@ -1191,6 +1191,12 @@ function renderDetail(id) {
 
 // ---------- load / persist ----------
 async function reload({ pull = false } = {}) {
+  // A host may keep a session alive on the board page (e.g. an identity-provider
+  // script) and expose a promise that resolves once the session is fresh — wait
+  // for it before the first data fetch so we don't 401 on a just-expired cookie.
+  if (window.__authReady) {
+    try { await window.__authReady; } catch (_) { /* proceed; a 401 will show login */ }
+  }
   if (pull) {
     setStatus("pulling…");
     try {
