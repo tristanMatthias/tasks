@@ -109,7 +109,12 @@ func (s *Server) authGate(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		id, ok := s.auth.Authorize(r)
 		if !ok {
-			w.Header().Set("WWW-Authenticate", `Bearer realm="tasks"`)
+			challenge := `Bearer realm="tasks"`
+			if s.resourceMetadataURL != "" {
+				// RFC 9728: point OAuth-capable clients at the resource metadata.
+				challenge = `Bearer resource_metadata="` + s.resourceMetadataURL + `"`
+			}
+			w.Header().Set("WWW-Authenticate", challenge)
 			w.Header().Set("Content-Type", "application/json; charset=utf-8")
 			w.WriteHeader(http.StatusUnauthorized)
 			w.Write([]byte(`{"error":"unauthorized"}`))

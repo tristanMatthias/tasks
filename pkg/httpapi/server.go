@@ -28,13 +28,14 @@ type CoreResolver func(r *http.Request) (*core.Core, error)
 
 // Server is the HTTP surface.
 type Server struct {
-	primaryCore *core.Core   // the single/default core; may be nil in a pure multi-core host
-	resolve     CoreResolver // optional per-request core selection
-	auth        Authenticator
-	loginURL    string
-	static      fs.FS
-	logger      *slog.Logger
-	mcp         http.Handler
+	primaryCore         *core.Core   // the single/default core; may be nil in a pure multi-core host
+	resolve             CoreResolver // optional per-request core selection
+	auth                Authenticator
+	loginURL            string
+	resourceMetadataURL string
+	static              fs.FS
+	logger              *slog.Logger
+	mcp                 http.Handler
 
 	maxBody     int64
 	corsOrigins []string
@@ -70,6 +71,11 @@ type Config struct {
 	// unauthenticated visitor to a hosted sign-in page (used with a custom Auth).
 	LoginURL string
 
+	// ResourceMetadataURL, when set, is advertised in the 401 WWW-Authenticate
+	// header (RFC 9728) so an OAuth-capable MCP client discovers the authorization
+	// server. Generic OAuth-resource-server support; the AS itself lives in the host.
+	ResourceMetadataURL string
+
 	MCP http.Handler
 
 	MaxBodyBytes int64
@@ -104,19 +110,20 @@ func New(cfg Config) *Server {
 	}
 	now := time.Now()
 	s := &Server{
-		primaryCore: cfg.Core,
-		resolve:     cfg.Resolve,
-		auth:        authn,
-		loginURL:    cfg.LoginURL,
-		static:      cfg.Static,
-		logger:      logger,
-		mcp:         cfg.MCP,
-		maxBody:     maxBody,
-		corsOrigins: cfg.CORSOrigins,
-		behindProxy: cfg.BehindProxy,
-		metricsOn:   cfg.Metrics,
-		metrics:     newMetrics(now),
-		lastChange:  now,
+		primaryCore:         cfg.Core,
+		resolve:             cfg.Resolve,
+		auth:                authn,
+		loginURL:            cfg.LoginURL,
+		resourceMetadataURL: cfg.ResourceMetadataURL,
+		static:              cfg.Static,
+		logger:              logger,
+		mcp:                 cfg.MCP,
+		maxBody:             maxBody,
+		corsOrigins:         cfg.CORSOrigins,
+		behindProxy:         cfg.BehindProxy,
+		metricsOn:           cfg.Metrics,
+		metrics:             newMetrics(now),
+		lastChange:          now,
 	}
 	if cfg.RateLimit > 0 {
 		burst := cfg.RateBurst
