@@ -7,6 +7,8 @@
   import { Button } from "$lib/components/ui/button/index.js";
   import { Avatar, AvatarImage, AvatarFallback } from "$lib/components/ui/avatar/index.js";
   import TrashIcon from "@lucide/svelte/icons/trash-2";
+  import LinkIcon from "@lucide/svelte/icons/link";
+  import CheckIcon from "@lucide/svelte/icons/check";
   import {
     workspaces,
     roleLabel,
@@ -14,14 +16,16 @@
     type Invite,
     type Role,
   } from "$shared/auth/workspaces.svelte.js";
+  import { copyText } from "$shared/platform/clipboard.js";
   import { Copy } from "$shared/copy.js";
 
   let members = $state<Member[]>([]);
   let invites = $state<Invite[]>([]);
   let roles = $state<Role[]>([]);
   let email = $state("");
-  let inviteRole = $state("org:member");
+  let inviteRole = $state("member");
   let busy = $state(false);
+  let copiedToken = $state("");
   let started = false;
 
   const isOrg = $derived(workspaces.available && !workspaces.active.isPersonal);
@@ -37,7 +41,6 @@
     await workspaces.ensureLoaded();
     if (!workspaces.available || workspaces.active.isPersonal) return;
     roles = await workspaces.getRoles();
-    inviteRole = roles.find((r) => /member/i.test(r.key))?.key ?? roles[0]?.key ?? "org:member";
     await Promise.all([loadMembers(), loadInvites()]);
   }
 
@@ -54,14 +57,22 @@
 
   async function invite(event: Event): Promise<void> {
     event.preventDefault();
-    const addr = email.trim();
-    if (!addr || busy) return;
+    if (busy) return;
     busy = true;
-    const ok = await workspaces.inviteMember(addr, inviteRole);
+    const created = await workspaces.inviteMember(email.trim(), inviteRole);
     busy = false;
-    if (ok) {
+    if (created) {
       email = "";
       await loadInvites();
+      // Surface the shareable link straight away (no email is sent).
+      copyLink(created);
+    }
+  }
+
+  async function copyLink(i: Invite): Promise<void> {
+    if (await copyText(i.url)) {
+      copiedToken = i.id;
+      setTimeout(() => (copiedToken === i.id ? (copiedToken = "") : null), 1500);
     }
   }
 
@@ -105,7 +116,7 @@
               {/each}
             </select>
           </Field>
-          <Button type="submit" disabled={busy || !email.trim()}>{Copy.SendInvite}</Button>
+          <Button type="submit" disabled={busy}>{Copy.CreateLink}</Button>
         </form>
       </Panel>
     {/if}
@@ -164,9 +175,13 @@
           {#each invites as i (i.id)}
             <li class="flex items-center gap-3 px-5 py-3">
               <div class="min-w-0 flex-1">
-                <div class="truncate text-sm">{i.email}</div>
+                <div class="truncate text-sm">{i.email || Copy.OpenLink}</div>
                 <div class="text-xs text-muted-foreground">{roleLabel(i.role)}</div>
               </div>
+              <Button variant="outline" size="sm" class="shrink-0 gap-1.5" onclick={() => copyLink(i)}>
+                {#if copiedToken === i.id}<CheckIcon class="size-3.5" />{:else}<LinkIcon class="size-3.5" />{/if}
+                {copiedToken === i.id ? Copy.LinkCopied : Copy.CopyLink}
+              </Button>
               <Button variant="ghost" size="sm" class="text-muted-foreground hover:text-destructive" onclick={() => revoke(i)}>
                 {Copy.Revoke}
               </Button>

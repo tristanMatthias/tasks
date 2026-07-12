@@ -37,7 +37,7 @@
     busy = false;
   }
 
-  const select = (id: string | null) => {
+  const select = (id: string) => {
     if (id !== workspaces.activeId) workspaces.switchTo(id);
   };
 </script>
@@ -54,7 +54,7 @@
     </DropdownMenu.Trigger>
     <DropdownMenu.Content align="start" class="w-56">
       <DropdownMenu.Label class="text-xs text-muted-foreground">{Copy.Workspaces}</DropdownMenu.Label>
-      {#each workspaces.workspaces as ws (ws.id ?? "personal")}
+      {#each workspaces.workspaces as ws (ws.id)}
         <DropdownMenu.Item onSelect={() => select(ws.id)}>
           <span class="truncate">{ws.name}</span>
           {#if ws.id === workspaces.activeId}
