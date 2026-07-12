@@ -7,6 +7,7 @@
  * isn't there, `available` stays false and every workspace surface hides. This
  * works in local token/none dev mode too (the whole system is self-hosted).
  */
+import { toast } from "svelte-sonner";
 
 /** A workspace the user can switch into. */
 export interface Workspace {
@@ -53,6 +54,10 @@ export function roleLabel(role: string): string {
   return bare.charAt(0).toUpperCase() + bare.slice(1);
 }
 
+/** Stable object for the "no workspace / still loading" case, so repeated reads
+ * of `active` don't churn identity or momentarily report admin. */
+const PERSONAL_FALLBACK: Workspace = { id: "", name: "Personal", role: "member", isPersonal: true };
+
 const JSON_HEADERS = { "Content-Type": "application/json" };
 
 async function getJSON<T>(url: string): Promise<T | null> {
@@ -64,12 +69,36 @@ async function getJSON<T>(url: string): Promise<T | null> {
   }
 }
 
+/** A mutating request that surfaces failures to the user (toast) instead of
+ * silently no-op'ing, and returns the parsed body on success. */
+async function send(
+  url: string,
+  method: string,
+  body?: unknown,
+): Promise<{ ok: boolean; data: unknown }> {
+  try {
+    const r = await fetch(url, {
+      method,
+      headers: body === undefined ? undefined : JSON_HEADERS,
+      body: body === undefined ? undefined : JSON.stringify(body),
+    });
+    if (r.ok) return { ok: true, data: await r.json().catch(() => null) };
+    const err = (await r.json().catch(() => null)) as { error?: string } | null;
+    toast.error(err?.error || `Request failed (${r.status})`);
+    return { ok: false, data: null };
+  } catch {
+    toast.error("Network error — please try again.");
+    return { ok: false, data: null };
+  }
+}
+
 class Workspaces {
   #available = $state(false);
   #loaded = $state(false);
   #list = $state<Workspace[]>([]);
   #activeId = $state<string | null>(null);
   #userId = $state<string | null>(null);
+  #loading: Promise<void> | null = null;
 
   get available(): boolean {
     return this.#available;
@@ -89,17 +118,20 @@ class Workspaces {
   get active(): Workspace {
     return (
       this.#list.find((w) => w.id === this.#activeId) ??
-      this.#list.find((w) => w.isPersonal) ?? { id: "", name: "Personal", role: "admin", isPersonal: true }
+      this.#list.find((w) => w.isPersonal) ??
+      PERSONAL_FALLBACK
     );
   }
   get isAdmin(): boolean {
     return roleIsAdmin(this.active.role);
   }
 
-  /** Load the workspace list once; safe to call often. */
+  /** Load the workspace list once; safe to call often. Concurrent callers share
+   * the same in-flight request rather than each firing their own. */
   async ensureLoaded(): Promise<void> {
     if (this.#loaded) return;
-    await this.reload();
+    if (!this.#loading) this.#loading = this.reload().finally(() => (this.#loading = null));
+    await this.#loading;
   }
 
   async reload(): Promise<void> {
@@ -138,13 +170,14 @@ class Workspaces {
   // ---- mutations (each hard-reloads when the active board changes) ----
 
   async switchTo(id: string): Promise<void> {
-    await fetch("/api/workspaces/switch", { method: "POST", headers: JSON_HEADERS, body: JSON.stringify({ id }) });
-    location.assign("/");
+    if (id === this.#activeId) return;
+    const { ok } = await send("/api/workspaces/switch", "POST", { id });
+    if (ok) location.assign("/"); // only reload once the cookie actually changed
   }
 
   async create(name: string): Promise<void> {
-    const r = await fetch("/api/workspaces", { method: "POST", headers: JSON_HEADERS, body: JSON.stringify({ name }) });
-    if (r.ok) location.assign("/"); // server set the active cookie to the new workspace
+    const { ok } = await send("/api/workspaces", "POST", { name });
+    if (ok) location.assign("/"); // server set the active cookie to the new workspace
   }
 
   #ws(): string {
@@ -173,23 +206,21 @@ class Workspaces {
   }
 
   async inviteMember(email: string, role: string): Promise<Invite | null> {
-    const r = await fetch(`/api/workspaces/${encodeURIComponent(this.#ws())}/invites`, {
-      method: "POST",
-      headers: JSON_HEADERS,
-      body: JSON.stringify({ email, role }),
+    if (!this.#ws()) return null;
+    const { ok, data } = await send(`/api/workspaces/${encodeURIComponent(this.#ws())}/invites`, "POST", {
+      email,
+      role,
     });
-    if (!r.ok) return null;
-    return this.#toInvite(await r.json());
+    return ok && data ? this.#toInvite(data as InviteJSON) : null;
   }
 
   async getInvitations(): Promise<Invite[]> {
-    const data = await getJSON<{ token: string; email: string; role: string; url: string }[]>(
-      `/api/workspaces/${encodeURIComponent(this.#ws())}/invites`,
-    );
+    if (!this.#ws()) return [];
+    const data = await getJSON<InviteJSON[]>(`/api/workspaces/${encodeURIComponent(this.#ws())}/invites`);
     return (data ?? []).map((i) => this.#toInvite(i));
   }
 
-  #toInvite(i: { token: string; email: string; role: string; url: string }): Invite {
+  #toInvite(i: InviteJSON): Invite {
     const ws = this.#ws();
     return {
       id: i.token,
@@ -197,54 +228,62 @@ class Workspaces {
       role: i.role,
       url: i.url,
       revoke: async () => {
-        await fetch(`/api/workspaces/${encodeURIComponent(ws)}/invites/${encodeURIComponent(i.token)}`, {
-          method: "DELETE",
-        });
+        await send(`/api/workspaces/${encodeURIComponent(ws)}/invites/${encodeURIComponent(i.token)}`, "DELETE");
       },
     };
   }
 
   async updateMemberRole(userId: string, role: string): Promise<boolean> {
-    const r = await fetch(`/api/workspaces/${encodeURIComponent(this.#ws())}/members/${encodeURIComponent(userId)}`, {
-      method: "PATCH",
-      headers: JSON_HEADERS,
-      body: JSON.stringify({ role }),
-    });
-    return r.ok;
+    if (!this.#ws()) return false;
+    const { ok } = await send(
+      `/api/workspaces/${encodeURIComponent(this.#ws())}/members/${encodeURIComponent(userId)}`,
+      "PATCH",
+      { role },
+    );
+    return ok;
   }
 
   async removeMember(userId: string): Promise<boolean> {
-    const r = await fetch(`/api/workspaces/${encodeURIComponent(this.#ws())}/members/${encodeURIComponent(userId)}`, {
-      method: "DELETE",
-    });
-    return r.ok;
+    if (!this.#ws()) return false;
+    const { ok } = await send(
+      `/api/workspaces/${encodeURIComponent(this.#ws())}/members/${encodeURIComponent(userId)}`,
+      "DELETE",
+    );
+    return ok;
   }
 
   async updateName(name: string): Promise<boolean> {
-    const r = await fetch(`/api/workspaces/${encodeURIComponent(this.#ws())}`, {
-      method: "PATCH",
-      headers: JSON_HEADERS,
-      body: JSON.stringify({ name }),
-    });
-    if (r.ok) await this.reload();
-    return r.ok;
+    if (!this.#ws()) return false;
+    const { ok } = await send(`/api/workspaces/${encodeURIComponent(this.#ws())}`, "PATCH", { name });
+    if (ok) await this.reload();
+    return ok;
   }
 
-  /** Leave the active workspace, then drop to personal. */
+  /** Leave the active workspace, then drop to personal. No-op (with a toast) if
+   * we don't yet know who the user is, so we never falsely claim to have left. */
   async leave(): Promise<void> {
-    if (this.#userId) {
-      await fetch(`/api/workspaces/${encodeURIComponent(this.#ws())}/members/${encodeURIComponent(this.#userId)}`, {
-        method: "DELETE",
-      });
-    }
-    location.assign("/");
+    if (!this.#ws() || !this.#userId) return;
+    const { ok } = await send(
+      `/api/workspaces/${encodeURIComponent(this.#ws())}/members/${encodeURIComponent(this.#userId)}`,
+      "DELETE",
+    );
+    if (ok) location.assign("/");
   }
 
   /** Delete the active workspace (admin), then drop to personal. */
   async destroy(): Promise<void> {
-    await fetch(`/api/workspaces/${encodeURIComponent(this.#ws())}`, { method: "DELETE" });
-    location.assign("/");
+    if (!this.#ws()) return;
+    const { ok } = await send(`/api/workspaces/${encodeURIComponent(this.#ws())}`, "DELETE");
+    if (ok) location.assign("/");
   }
+}
+
+/** The invites endpoint's JSON shape. */
+interface InviteJSON {
+  token: string;
+  email: string;
+  role: string;
+  url: string;
 }
 
 export const workspaces = new Workspaces();

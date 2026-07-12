@@ -12,6 +12,7 @@
   let name = $state("");
   let busy = $state(false);
   let confirmDelete = $state(false);
+  let confirmLeave = $state(false);
   let started = false;
 
   const isOrg = $derived(workspaces.available && !workspaces.active.isPersonal);
@@ -64,7 +65,7 @@
           <div class="text-sm font-medium">{Copy.LeaveWorkspace}</div>
           <div class="text-xs text-muted-foreground">{Copy.LeaveWorkspaceDesc}</div>
         </div>
-        <Button variant="outline" onclick={() => workspaces.leave()}>{Copy.Leave}</Button>
+        <Button variant="outline" onclick={() => (confirmLeave = true)}>{Copy.Leave}</Button>
       </div>
 
       {#if isAdmin}
@@ -88,6 +89,19 @@
       <Dialog.Footer>
         <Button variant="outline" onclick={() => (confirmDelete = false)}>{Copy.Cancel}</Button>
         <Button variant="destructive" onclick={() => workspaces.destroy()}>{Copy.Delete}</Button>
+      </Dialog.Footer>
+    </Dialog.Content>
+  </Dialog.Root>
+
+  <Dialog.Root bind:open={confirmLeave}>
+    <Dialog.Content class="sm:max-w-md">
+      <Dialog.Header>
+        <Dialog.Title>{Copy.LeaveWorkspace}</Dialog.Title>
+        <Dialog.Description>{Copy.LeaveWorkspaceDesc}</Dialog.Description>
+      </Dialog.Header>
+      <Dialog.Footer>
+        <Button variant="outline" onclick={() => (confirmLeave = false)}>{Copy.Cancel}</Button>
+        <Button variant="destructive" onclick={() => workspaces.leave()}>{Copy.Leave}</Button>
       </Dialog.Footer>
     </Dialog.Content>
   </Dialog.Root>

@@ -78,7 +78,8 @@
 
   async function changeRole(m: Member, role: string): Promise<void> {
     if (role === m.role) return;
-    if (await workspaces.updateMemberRole(m.userId, role)) await loadMembers();
+    await workspaces.updateMemberRole(m.userId, role);
+    await loadMembers(); // re-sync the <select> to server truth (even on failure)
   }
   async function remove(m: Member): Promise<void> {
     if (await workspaces.removeMember(m.userId)) await loadMembers();
