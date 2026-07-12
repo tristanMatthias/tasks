@@ -1,11 +1,33 @@
 <!doctype html>
-<html lang="en" data-theme="tokyonight">
+<html lang="en" class="dark">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>Tasks</title>
-  <script type="module" crossorigin src="/static/assets/index-D3osp4g9.js"></script>
-  <link rel="stylesheet" crossorigin href="/static/assets/index-BcMeOX15.css">
+  <!-- favicons / app icons — generated from brand/icon.png (see brand/generate-icons.mjs) -->
+  <link rel="icon" href="/static/favicon.ico?v=2" sizes="any" />
+  <link rel="icon" type="image/png" sizes="32x32" href="/static/favicon-32x32.png?v=2" />
+  <link rel="icon" type="image/png" sizes="16x16" href="/static/favicon-16x16.png?v=2" />
+  <link rel="apple-touch-icon" href="/static/apple-touch-icon.png?v=2" />
+  <link rel="manifest" href="/static/manifest.webmanifest" />
+  <meta name="theme-color" content="#0f1115" />
+  <script>
+    // Default to dark (Tokyo Night) before first paint; mode-watcher then agrees.
+    try {
+      if (!localStorage.getItem("mode-watcher-mode")) localStorage.setItem("mode-watcher-mode", "dark");
+      if (localStorage.getItem("mode-watcher-mode") !== "light") document.documentElement.classList.add("dark");
+    } catch (e) { document.documentElement.classList.add("dark"); }
+    // Kick off the task fetch immediately — in parallel with the JS bundle
+    // download+eval. It usually resolves before the app mounts, so we also stash
+    // the resolved payload synchronously (__bootData) to render with data on the
+    // FIRST paint (no empty-then-populated flicker).
+    window.__bootTasks = fetch("/api/issues?view=tree")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => ((window.__bootData = d), d))
+      .catch(() => null);
+  </script>
+  <script type="module" crossorigin src="/static/assets/index-BwHJwcjB.js"></script>
+  <link rel="stylesheet" crossorigin href="/static/assets/index-DyoZBuHW.css">
 </head>
 <body>
   <div id="app"></div>

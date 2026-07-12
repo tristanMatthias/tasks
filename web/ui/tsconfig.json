@@ -1,0 +1,23 @@
+{
+  "compilerOptions": {
+    "moduleResolution": "bundler",
+    "module": "esnext",
+    "target": "esnext",
+    "lib": ["esnext", "dom", "dom.iterable"],
+    "allowJs": true,
+    "checkJs": false,
+    "strict": true,
+    "isolatedModules": true,
+    "skipLibCheck": true,
+    "verbatimModuleSyntax": false,
+    "baseUrl": ".",
+    "paths": {
+      "$lib": ["./src/design-system"],
+      "$lib/*": ["./src/design-system/*"],
+      "$tasks/*": ["./src/tasks/*"],
+      "$board/*": ["./src/board/*"],
+      "$shared/*": ["./src/shared/*"]
+    }
+  },
+  "include": ["src/**/*.ts", "src/**/*.svelte"]
+}

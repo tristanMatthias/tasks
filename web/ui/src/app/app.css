@@ -1,0 +1,188 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+@plugin "@tailwindcss/typography";
+
+/* shadcn-svelte token system (Tailwind v4). Everything themes off these CSS
+   variables — change them (or add a new [data-theme]/.class block) to reskin the
+   entire component set. Dark is the default here to match the app's origins. */
+@custom-variant dark (&:is(.dark *));
+
+:root {
+  --radius: 0.3rem;
+  /* Pressed/active overlay, tinted from the theme foreground so it darkens on
+     light and lightens on dark. Tweak the % to make the press stronger/softer. */
+  --pressed: color-mix(in oklab, var(--foreground) 12%, transparent);
+  --background: oklch(1 0 0);
+  --foreground: oklch(0.145 0 0);
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.145 0 0);
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.145 0 0);
+  --primary: oklch(0.205 0 0);
+  --primary-foreground: oklch(0.985 0 0);
+  --secondary: oklch(0.97 0 0);
+  --secondary-foreground: oklch(0.205 0 0);
+  --muted: oklch(0.97 0 0);
+  --muted-foreground: oklch(0.556 0 0);
+  --accent: oklch(0.97 0 0);
+  --accent-foreground: oklch(0.205 0 0);
+  --destructive: oklch(0.577 0.245 27.325);
+  --destructive-foreground: oklch(0.985 0 0);
+  --border: oklch(0.922 0 0);
+  --input: oklch(0.922 0 0);
+  --ring: oklch(0.708 0 0);
+  --chart-1: oklch(0.646 0.222 41.116);
+  --chart-2: oklch(0.6 0.118 184.704);
+  --chart-3: oklch(0.398 0.07 227.392);
+  --chart-4: oklch(0.828 0.189 84.429);
+  --chart-5: oklch(0.769 0.188 70.08);
+  --sidebar: oklch(0.985 0 0);
+  --sidebar-foreground: oklch(0.145 0 0);
+  --sidebar-primary: oklch(0.205 0 0);
+  --sidebar-primary-foreground: oklch(0.985 0 0);
+  --sidebar-accent: oklch(0.97 0 0);
+  --sidebar-accent-foreground: oklch(0.205 0 0);
+  --sidebar-border: oklch(0.922 0 0);
+  --sidebar-ring: oklch(0.708 0 0);
+  --status-open: #16a34a;
+  --status-in-progress: #0284c7;
+  --status-deferred: #d97706;
+  --status-closed: #71717a;
+  --type-epic: #7048e8;
+  --type-feature: #0284c7;
+  --type-task: #52607a;
+  --type-bug: #e03131;
+  --type-chore: #8b93a7;
+  --priority-0: #e03131;
+  --priority-1: #d97706;
+  --priority-2: #0284c7;
+  --priority-3: #8b93a7;
+  --priority-4: #8b93a7;
+}
+
+/* Tokyo Night — the palette from the beads UI, mapped onto the shadcn tokens so
+   every component inherits it. This is the default (the app opens in dark). */
+.dark {
+  --background: #0f1115;
+  --foreground: #d9deea;
+  --card: #161922;
+  --card-foreground: #d9deea;
+  --popover: #1d212c;
+  --popover-foreground: #d9deea;
+  --primary: #7aa2f7;
+  --primary-foreground: #0f1115;
+  --secondary: #1d212c;
+  --secondary-foreground: #d9deea;
+  --muted: #1d212c;
+  --muted-foreground: #8b93a7;
+  --accent: #232838;
+  --accent-foreground: #d9deea;
+  --destructive: #f7768e;
+  --destructive-foreground: #0f1115;
+  --border: #2a2f3d;
+  --input: #2a2f3d;
+  --ring: #7aa2f7;
+  --chart-1: #7aa2f7;
+  --chart-2: #bb9af7;
+  --chart-3: #7dcfff;
+  --chart-4: #9ece6a;
+  --chart-5: #e0af68;
+  --sidebar: #161922;
+  --sidebar-foreground: #d9deea;
+  --sidebar-primary: #7aa2f7;
+  --sidebar-primary-foreground: #0f1115;
+  --sidebar-accent: #232838;
+  --sidebar-accent-foreground: #d9deea;
+  --sidebar-border: #2a2f3d;
+  --sidebar-ring: #7aa2f7;
+  --status-open: #9ece6a;
+  --status-in-progress: #7dcfff;
+  --status-deferred: #e0af68;
+  --status-closed: #565f73;
+  --type-epic: #bb9af7;
+  --type-feature: #7dcfff;
+  --type-task: #9aa2b8;
+  --type-bug: #f7768e;
+  --type-chore: #6b7488;
+  --priority-0: #f7768e;
+  --priority-1: #e0af68;
+  --priority-2: #7dcfff;
+  --priority-3: #6b7488;
+  --priority-4: #6b7488;
+}
+
+@theme inline {
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
+}
+
+@layer base {
+  * {
+    border-color: var(--border);
+  }
+  html,
+  body {
+    height: 100%;
+    margin: 0;
+    /* We provide our own pressed feedback below; drop the mobile tap flash. */
+    -webkit-tap-highlight-color: transparent;
+  }
+  body {
+    background-color: var(--background);
+    color: var(--foreground);
+  }
+  #app {
+    min-height: 100%;
+  }
+
+  /* Theme-wide pressed feedback: a translucent tint that composites over
+     whatever background an interactive surface has — transparent menu rows and
+     solid buttons alike. `:where()` keeps specificity at zero so any component
+     can still override, and `--pressed` makes the strength themeable. */
+  :where(
+    button,
+    summary,
+    [role="button"],
+    [role="menuitem"],
+    [role="menuitemcheckbox"],
+    [role="menuitemradio"],
+    [role="option"],
+    [role="tab"]
+  ):not(:disabled, [data-disabled], [aria-disabled="true"]):active {
+    background-image: linear-gradient(var(--pressed), var(--pressed));
+  }
+}

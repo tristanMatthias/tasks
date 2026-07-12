@@ -1,6 +1,7 @@
 package httpapi
 
 import (
+	"compress/gzip"
 	"encoding/json"
 	"io"
 	"net/http"
@@ -134,6 +135,56 @@ func TestInjectHead(t *testing.T) {
 	_, body := do(t, ts, "GET", "/", "", "")
 	if !strings.Contains(string(body), `id="inject-probe"`) || !strings.Contains(string(body), "</head>") {
 		t.Fatalf("InjectHead not spliced before </head>: %s", body)
+	}
+}
+
+func TestGzipCompression(t *testing.T) {
+	ts := newServer(t, "") // no-auth so /api/issues is reachable
+	req, _ := http.NewRequest("GET", ts.URL+"/api/issues", nil)
+	req.Header.Set("Accept-Encoding", "gzip") // set manually so Go returns raw gzip
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	if resp.Header.Get("Content-Encoding") != "gzip" {
+		t.Fatalf("expected gzip, got %q", resp.Header.Get("Content-Encoding"))
+	}
+	gz, err := gzip.NewReader(resp.Body)
+	if err != nil {
+		t.Fatalf("body is not valid gzip: %v", err)
+	}
+	body, _ := io.ReadAll(gz)
+	if !strings.Contains(string(body), `"issues"`) {
+		t.Fatalf("decompressed body wrong: %.60s", body)
+	}
+}
+
+func TestSPAFallback(t *testing.T) {
+	ts := newServer(t, "tok")
+	// An HTML navigation to a client-side route serves the SPA shell (public),
+	// so a deep-link refresh of /tasks/:id works.
+	req, _ := http.NewRequest("GET", ts.URL+"/tasks/proj-abc", nil)
+	req.Header.Set("Accept", "text/html")
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	body, _ := io.ReadAll(resp.Body)
+	resp.Body.Close()
+	if resp.StatusCode != 200 || !strings.Contains(string(body), `id="app"`) {
+		t.Fatalf("SPA route should serve the shell: %d", resp.StatusCode)
+	}
+	// A JSON data request on the same-shaped path stays auth-gated (not the shell).
+	req2, _ := http.NewRequest("GET", ts.URL+"/api/issues", nil)
+	req2.Header.Set("Accept", "application/json")
+	resp2, err := http.DefaultClient.Do(req2)
+	if err != nil {
+		t.Fatal(err)
+	}
+	resp2.Body.Close()
+	if resp2.StatusCode != http.StatusUnauthorized {
+		t.Fatalf("data route must stay gated, got %d", resp2.StatusCode)
 	}
 }
 

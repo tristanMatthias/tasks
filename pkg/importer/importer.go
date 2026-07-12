@@ -4,6 +4,7 @@ package importer
 
 import (
 	"fmt"
+	"io"
 	"os"
 
 	"github.com/tristanMatthias/tasks/pkg/model"
@@ -18,10 +19,16 @@ func ImportFile(st *store.Store, path string) (int, error) {
 		return 0, err
 	}
 	defer f.Close()
+	return ImportReader(st, f)
+}
 
-	tasks, err := model.ReadJSONL(f)
+// ImportReader reads JSONL from r and upserts every task into st, preserving all
+// fields verbatim. Idempotent, and dependency edges tolerate forward references,
+// so a large export can be streamed in chunks. Returns the number imported.
+func ImportReader(st *store.Store, r io.Reader) (int, error) {
+	tasks, err := model.ReadJSONL(r)
 	if err != nil {
-		return 0, fmt.Errorf("parse %s: %w", path, err)
+		return 0, fmt.Errorf("parse jsonl: %w", err)
 	}
 	for i := range tasks {
 		ensureID(&tasks[i])

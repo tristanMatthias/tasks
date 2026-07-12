@@ -16,6 +16,8 @@ import (
 	"io/fs"
 	"log/slog"
 	"net/http"
+	"path"
+	"strings"
 	"sync"
 	"time"
 
@@ -175,6 +177,7 @@ func (s *Server) Handler() http.Handler {
 	app.HandleFunc("GET /api/issues", s.handleIssues)
 	app.HandleFunc("GET /api/meta", s.handleMeta)
 	app.HandleFunc("POST /api/pull", s.handlePull)
+	app.HandleFunc("POST /api/v1/import", s.handleImport)
 	for _, op := range api.Ops() {
 		app.HandleFunc(op.Method+" "+op.Path, s.opHandler(op))
 	}
@@ -207,10 +210,30 @@ func (s *Server) Handler() http.Handler {
 		root.HandleFunc("POST /api/login", lp.Login)
 		root.HandleFunc("POST /api/logout", lp.Logout)
 	}
-	// Everything else (task data, MCP) is auth-gated.
-	root.Handle("/", s.authGate(app))
+	// Everything else. A browser navigating to a client-side route (e.g.
+	// /tasks/abc) gets the SPA shell so a deep-link refresh works; API + MCP
+	// requests stay auth-gated. Detection: an HTML GET that isn't /api or /mcp.
+	gated := s.authGate(app)
+	root.Handle("/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		p := r.URL.Path
+		// A public file that lives at the bundle root — favicon.ico,
+		// apple-touch-icon.png, manifest.webmanifest, … — served without the gate
+		// (browsers request these at the site root, ignoring the <link> paths).
+		if r.Method == http.MethodGet && s.static != nil && isStaticFile(s.static, p) {
+			staticFS.ServeHTTP(w, r)
+			return
+		}
+		if r.Method == http.MethodGet && s.static != nil &&
+			strings.Contains(r.Header.Get("Accept"), "text/html") &&
+			!strings.HasPrefix(p, "/api/") && !strings.HasPrefix(p, "/mcp") {
+			serveIndex(w, r)
+			return
+		}
+		gated.ServeHTTP(w, r)
+	}))
 
 	var h http.Handler = root
+	h = gzipMiddleware(h) // innermost: compress the router's response
 	h = bodyLimit(s.maxBody, h)
 	if s.rl != nil {
 		h = s.rl.middleware(h)
@@ -224,6 +247,17 @@ func (s *Server) Handler() http.Handler {
 	h = requestIDMiddleware(h)
 	h = recoverer(s.logger, h)
 	return h
+}
+
+// isStaticFile reports whether urlPath maps to a regular file in the bundle
+// (so the root handler can serve public assets like /favicon.ico directly).
+func isStaticFile(fsys fs.FS, urlPath string) bool {
+	name := strings.Trim(path.Clean("/"+urlPath), "/")
+	if name == "" {
+		return false
+	}
+	info, err := fs.Stat(fsys, name)
+	return err == nil && !info.IsDir()
 }
 
 func (s *Server) serveStatic(w http.ResponseWriter, r *http.Request, name, ctype string) {

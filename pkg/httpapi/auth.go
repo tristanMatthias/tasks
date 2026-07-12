@@ -9,6 +9,10 @@ import (
 
 const cookieName = "tasks_token"
 
+// sessionMaxAge keeps the login persistent across browser restarts (a static
+// shared token has nothing to refresh; a long-lived cookie is the session).
+const sessionMaxAge = 30 * 24 * 60 * 60 // 30 days, in seconds
+
 // Identity describes an authenticated principal. Subject is a stable id
 // ("token" for shared-token mode, a user id for an embedder's auth); Claims
 // carries extra data (e.g. an org/tenant id) that a CoreResolver can read.
@@ -98,6 +102,7 @@ func setSessionCookie(w http.ResponseWriter, v string) {
 	http.SetCookie(w, &http.Cookie{
 		Name: cookieName, Value: v, Path: "/",
 		HttpOnly: true, SameSite: http.SameSiteLaxMode,
+		MaxAge: sessionMaxAge, // persistent, so a browser restart stays signed in
 	})
 }
 

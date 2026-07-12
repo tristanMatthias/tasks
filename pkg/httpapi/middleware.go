@@ -1,6 +1,7 @@
 package httpapi
 
 import (
+	"compress/gzip"
 	"context"
 	"crypto/rand"
 	"encoding/hex"
@@ -14,6 +15,40 @@ import (
 
 	"golang.org/x/time/rate"
 )
+
+// gzipMiddleware compresses responses when the client accepts it. It skips
+// /static/ (the file server sets Content-Length from the uncompressed size) and
+// /mcp (SSE streaming), so it targets the big JSON API + the HTML shell.
+func gzipMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		p := r.URL.Path
+		if !strings.Contains(r.Header.Get("Accept-Encoding"), "gzip") ||
+			strings.HasPrefix(p, "/static/") || strings.HasPrefix(p, "/mcp") {
+			next.ServeHTTP(w, r)
+			return
+		}
+		w.Header().Set("Content-Encoding", "gzip")
+		w.Header().Add("Vary", "Accept-Encoding")
+		w.Header().Del("Content-Length") // gzip changes the length
+		gz := gzip.NewWriter(w)
+		defer gz.Close()
+		next.ServeHTTP(&gzipResponseWriter{ResponseWriter: w, gz: gz}, r)
+	})
+}
+
+type gzipResponseWriter struct {
+	http.ResponseWriter
+	gz *gzip.Writer
+}
+
+func (g *gzipResponseWriter) Write(b []byte) (int, error) { return g.gz.Write(b) }
+
+func (g *gzipResponseWriter) Flush() {
+	_ = g.gz.Flush()
+	if f, ok := g.ResponseWriter.(http.Flusher); ok {
+		f.Flush()
+	}
+}
 
 type ctxKey int
 

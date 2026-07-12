@@ -6,9 +6,27 @@ import (
 	"net/http"
 
 	"github.com/tristanMatthias/tasks/pkg/api"
+	"github.com/tristanMatthias/tasks/pkg/importer"
 	"github.com/tristanMatthias/tasks/pkg/model"
 	"github.com/tristanMatthias/tasks/pkg/store"
 )
+
+// handleImport upserts a beads-style JSONL (the request body) into the caller's
+// tenant, preserving ids / dependencies / timestamps. Idempotent; a large export
+// can be streamed in chunks. Auth-gated (registered under the gated app mux).
+func (s *Server) handleImport(w http.ResponseWriter, r *http.Request) {
+	c, err := s.coreFor(r)
+	if err != nil {
+		writeErr(w, http.StatusBadRequest, err)
+		return
+	}
+	n, err := importer.ImportReader(c.Store(), r.Body)
+	if err != nil {
+		writeErr(w, http.StatusBadRequest, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"imported": n})
+}
 
 // ---- UI endpoints (compatible with beads_ui/server.py) ----
 
@@ -26,11 +44,53 @@ func (s *Server) handleIssues(w http.ResponseWriter, r *http.Request) {
 	if tasks == nil {
 		tasks = []model.Task{}
 	}
+	// ?view=tree returns a slim projection (no large text fields), ~10x smaller,
+	// for the list/tree UI. Full task detail is fetched per-task on demand.
+	var issues any = tasks
+	if r.URL.Query().Get("view") == "tree" {
+		issues = treeView(tasks)
+	}
 	writeJSON(w, http.StatusOK, map[string]any{
-		"issues": tasks,
+		"issues": issues,
 		"mtime":  s.mtime(),
 		"count":  len(tasks),
 	})
+}
+
+// treeTask is the minimal shape the list/tree needs: enough to render a row and
+// build the parent-child hierarchy, without the heavy description/notes/comments.
+type treeTask struct {
+	ID           string        `json:"id"`
+	Title        string        `json:"title"`
+	Status       string        `json:"status"`
+	IssueType    string        `json:"issue_type"`
+	Priority     *int          `json:"priority"`
+	Dependencies []treeTaskDep `json:"dependencies,omitempty"`
+}
+
+type treeTaskDep struct {
+	DependsOnID string `json:"depends_on_id"`
+	Type        string `json:"type"`
+}
+
+func treeView(tasks []model.Task) []treeTask {
+	out := make([]treeTask, 0, len(tasks))
+	for i := range tasks {
+		t := &tasks[i]
+		var deps []treeTaskDep
+		for _, d := range t.Dependencies {
+			// Containment edges build the tree; blocks edges let the detail view
+			// show what a task is blocking. Everything else stays out of the list.
+			if d.Type == "parent-child" || d.Type == "parent" || d.Type == "blocks" {
+				deps = append(deps, treeTaskDep{DependsOnID: d.DependsOnID, Type: d.Type})
+			}
+		}
+		out = append(out, treeTask{
+			ID: t.ID, Title: t.Title, Status: t.Status,
+			IssueType: t.IssueType, Priority: t.Priority, Dependencies: deps,
+		})
+	}
+	return out
 }
 
 func (s *Server) handleMeta(w http.ResponseWriter, r *http.Request) {
