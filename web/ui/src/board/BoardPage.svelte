@@ -7,13 +7,15 @@
   } from "$lib/components/ui/resizable/index.js";
   import { Button } from "$lib/components/ui/button/index.js";
   import ArrowLeftIcon from "@lucide/svelte/icons/arrow-left";
-  import TreePanel from "./ui/TreePanel.svelte";
+  import MainPanel from "./ui/MainPanel.svelte";
   import TaskDetail from "$tasks/ui/TaskDetail.svelte";
   import TaskMeta from "$tasks/ui/TaskMeta.svelte";
   import type { Task } from "$tasks/model/issue.js";
   import { initialTasks, loadTaskList, fetchTaskDetail, updateTask } from "$tasks/data.js";
   import { indexTasks } from "$tasks/markdown/task-index.svelte.js";
   import { createPersistedFilter } from "./board-filter.svelte.js";
+  import { createPersistedView } from "./board-view.svelte.js";
+  import { createPersistedSort } from "./board-sort.svelte.js";
   import { router } from "$shared/router/router.svelte.js";
   import { BoardPath, taskPath, taskIdFromPath } from "$shared/router/routes.js";
   import { Breakpoint, createMediaQuery } from "$shared/platform/media.svelte.js";
@@ -33,6 +35,10 @@
   indexTasks(tasks);
   // Search + facet filter, persisted across refreshes.
   const filter = createPersistedFilter();
+  // Which view is active (tree / graph / dashboard), also persisted.
+  const view = createPersistedView();
+  // Sort order (field + direction), also persisted.
+  const sort = createPersistedSort();
   // The full record for the open task (the list is slim — no description, etc.).
   let detailTask = $state<Task | null>(null);
 
@@ -88,15 +94,16 @@
   const backToList = () => router.navigate(BoardPath);
 </script>
 
-{#snippet treePanel()}
-  <TreePanel {tasks} filter={filter.current} {selectedId} onSelect={openTask} onPatch={patchTask} />
+{#snippet mainPanel()}
+  <MainPanel {tasks} filter={filter.current} {view} {sort} {selectedId} onSelect={openTask} onPatch={patchTask} />
 {/snippet}
 
 {#if isDesktop.matches}
-  <!-- Desktop: resizable two-pane, tree persists across selection. -->
+  <!-- Desktop: resizable two-pane. The left pane swaps view (tree/dashboard/
+       graph); the right detail pane persists and just updates on selection. -->
   <ResizablePaneGroup direction="horizontal" autoSaveId={StorageKey.PaneLayout} class="h-full">
     <ResizablePane id="tree" order={1} defaultSize={TREE_PANE_DEFAULT_SIZE} minSize={TREE_PANE_MIN_SIZE}>
-      {@render treePanel()}
+      {@render mainPanel()}
     </ResizablePane>
     <ResizableHandle withHandle />
     <ResizablePane id="detail" order={2}>
@@ -104,12 +111,12 @@
     </ResizablePane>
   </ResizablePaneGroup>
 {:else}
-  <!-- Mobile: the list is full-width. The tree stays MOUNTED and laid out (only
-       made invisible, not display:none) under the opaque detail overlay — so the
+  <!-- Mobile: the view is full-width. It stays MOUNTED and laid out (only made
+       invisible, not display:none) under the opaque detail overlay — so the
        virtualizer keeps its rows measured and returning to the list is instant. -->
   <div class="relative h-full min-h-0">
     <div class="h-full min-h-0" class:invisible={selectedId !== null}>
-      {@render treePanel()}
+      {@render mainPanel()}
     </div>
     {#if selectedId !== null}
       <div class="absolute inset-0 flex min-h-0 flex-col bg-background">

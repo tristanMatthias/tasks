@@ -62,8 +62,28 @@ export function parentId(hierarchy: Hierarchy, id: string): string | null {
   return null;
 }
 
-/** Build the sorted hierarchy from a flat list of tasks. */
-export function buildHierarchy(tasks: readonly Task[]): Hierarchy {
+/** A total order over tasks (used to order siblings and roots). */
+export type TaskComparator = (a: Task, b: Task) => number;
+
+/** The default order: type, then priority, then natural id — like beads. */
+export const defaultTaskCompare: TaskComparator = (a, b) => {
+  const weight = (task: Task) => ISSUE_TYPE_SORT_WEIGHT[task.issue_type] ?? SORT_FALLBACK.TypeWeight;
+  const priority = (task: Task) => task.priority ?? SORT_FALLBACK.Priority;
+  const byType = weight(a) - weight(b);
+  if (byType !== 0) return byType;
+  const byPriority = priority(a) - priority(b);
+  if (byPriority !== 0) return byPriority;
+  return naturalCompare(a.id, b.id);
+};
+
+/**
+ * Build the sorted hierarchy from a flat list of tasks. Siblings (and roots) are
+ * ordered by `compare`, defaulting to the natural hierarchy order.
+ */
+export function buildHierarchy(
+  tasks: readonly Task[],
+  compare: TaskComparator = defaultTaskCompare,
+): Hierarchy {
   const byId = new Map<string, Task>();
   for (const task of tasks) byId.set(task.id, task);
 
@@ -79,29 +99,14 @@ export function buildHierarchy(tasks: readonly Task[]): Hierarchy {
     }
   }
 
-  const compare = makeSiblingComparator(byId);
-  for (const siblings of children.values()) siblings.sort(compare);
+  const cmp = (aId: string, bId: string) => compare(byId.get(aId)!, byId.get(bId)!);
+  for (const siblings of children.values()) siblings.sort(cmp);
   const roots = tasks
     .map((task) => task.id)
     .filter((id) => !hasParent.has(id))
-    .sort(compare);
+    .sort(cmp);
 
   return { byId, children, roots };
-}
-
-/** Order siblings by type, then priority, then natural id — like beads. */
-function makeSiblingComparator(byId: ReadonlyMap<string, Task>) {
-  const weight = (task: Task) => ISSUE_TYPE_SORT_WEIGHT[task.issue_type] ?? SORT_FALLBACK.TypeWeight;
-  const priority = (task: Task) => task.priority ?? SORT_FALLBACK.Priority;
-  return (aId: string, bId: string): number => {
-    const a = byId.get(aId)!;
-    const b = byId.get(bId)!;
-    const byType = weight(a) - weight(b);
-    if (byType !== 0) return byType;
-    const byPriority = priority(a) - priority(b);
-    if (byPriority !== 0) return byPriority;
-    return naturalCompare(a.id, b.id);
-  };
 }
 
 /**

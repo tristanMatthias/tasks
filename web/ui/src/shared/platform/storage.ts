@@ -4,6 +4,10 @@ export const StorageKey = {
   PaneLayout: "tasks:pane-layout",
   /** Persisted search + facet filter. */
   Filter: "tasks:filter",
+  /** Persisted board view (tree / graph / dashboard). */
+  View: "tasks:view",
+  /** Persisted sort order (field + direction). */
+  Sort: "tasks:sort",
   /** Persisted set of collapsed subtree ids (only the collapsed ones). */
   Collapsed: "tasks:collapsed",
   /** Cached slim task list (for instant load). */

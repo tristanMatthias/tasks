@@ -2,6 +2,7 @@
   import { buildHierarchy, filterHierarchy } from "$tasks/model/hierarchy.js";
   import type { Task } from "$tasks/model/issue.js";
   import { isFilterActive, matchesFilter, type TaskFilter } from "$tasks/model/filter.js";
+  import { DEFAULT_SORT, makeTaskComparator, type TaskSort } from "$tasks/model/sort.js";
   import { CollapseState } from "../collapse.svelte.js";
   import { createVirtualList } from "$shared/platform/virtual-list.svelte.js";
   import { flattenVisible } from "./flatten.js";
@@ -18,6 +19,8 @@
     rootId?: string | null;
     /** Grow to fit all rows (no internal scroll/virtualization) for embedding. */
     autoHeight?: boolean;
+    /** Sibling order; defaults to the natural hierarchy order. */
+    sort?: TaskSort;
   }
   let {
     tasks,
@@ -27,9 +30,10 @@
     onPatch,
     rootId = null,
     autoHeight = false,
+    sort = DEFAULT_SORT,
   }: Props = $props();
 
-  const hierarchy = $derived(buildHierarchy(tasks));
+  const hierarchy = $derived(buildHierarchy(tasks, makeTaskComparator(sort)));
   // Scope to a task's children first (for the detail subtree), so filtering only
   // ever projects within that subtree...
   const scoped = $derived(

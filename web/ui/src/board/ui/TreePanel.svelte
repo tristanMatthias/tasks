@@ -6,6 +6,8 @@
 <script lang="ts">
   import type { Task } from "$tasks/model/issue.js";
   import type { TaskFilter } from "$tasks/model/filter.js";
+  import type { PersistedState } from "runed";
+  import type { BoardView } from "$board/board-view.svelte.js";
   import TreeToolbar from "./TreeToolbar.svelte";
   import Tree from "./Tree.svelte";
 
@@ -17,6 +19,8 @@
     onPatch: (id: string, patch: Partial<Task>) => void;
     rootId?: string | null;
     autoHeight?: boolean;
+    /** Passed only by the main board, so its toolbar shows the view switcher. */
+    viewState?: PersistedState<BoardView>;
   }
   let {
     tasks,
@@ -26,6 +30,7 @@
     onPatch,
     rootId = null,
     autoHeight = false,
+    viewState,
   }: Props = $props();
 
   let tree = $state<{ expandAll(): void; collapseAll(): void }>();
@@ -34,6 +39,7 @@
 <div class={autoHeight ? "flex flex-col" : "flex h-full min-h-0 flex-col"}>
   <TreeToolbar
     {filter}
+    {viewState}
     onExpandAll={() => tree?.expandAll()}
     onCollapseAll={() => tree?.collapseAll()}
   />
