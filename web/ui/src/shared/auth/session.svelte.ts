@@ -39,6 +39,18 @@ class Session {
   get canLogout(): boolean {
     return this.authenticated && this.mode !== "none";
   }
+  /** Server-verified active workspace (org id), if the embedder supplies it. */
+  get org(): string | undefined {
+    return this.#info?.org;
+  }
+  /** Server-verified active workspace slug (the task-id prefix source). */
+  get orgSlug(): string | undefined {
+    return this.#info?.org_slug;
+  }
+  /** Server-verified role in the active workspace (e.g. "org:admin"). */
+  get orgRole(): string | undefined {
+    return this.#info?.org_role;
+  }
 }
 
 export const session = new Session();

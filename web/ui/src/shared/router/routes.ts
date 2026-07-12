@@ -25,8 +25,10 @@ export function taskIdFromPath(path: string): string | null {
 
 const SETTINGS_PREFIX = "/settings";
 
-/** The ordered settings sections (also their url slugs). */
-export const SETTINGS_SECTIONS = ["account", "keys", "connect"] as const;
+/** The ordered settings sections (also their url slugs). The workspace sections
+ * (members / workspace) only render when the board is Clerk-backed and an org is
+ * active; the route slugs always exist so links can be built unconditionally. */
+export const SETTINGS_SECTIONS = ["account", "keys", "connect", "members", "workspace"] as const;
 export type SettingsSection = (typeof SETTINGS_SECTIONS)[number];
 
 /** URL for a settings section (or the settings root). */

@@ -12,6 +12,12 @@ export interface AuthInfo {
   authenticated: boolean;
   /** For "custom" mode: where to send the user to sign in (e.g. Clerk). */
   login_url?: string;
+  /** Server-verified active workspace (org id), when the embedder supplies it. */
+  org?: string;
+  /** Server-verified workspace slug (drives the task-id prefix). */
+  org_slug?: string;
+  /** Server-verified role in the active workspace (e.g. "org:admin"). */
+  org_role?: string;
 }
 
 export interface ApiKey {

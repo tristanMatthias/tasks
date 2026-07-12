@@ -6,6 +6,8 @@
   import AccountPage from "./AccountPage.svelte";
   import KeysPage from "./KeysPage.svelte";
   import ConnectPage from "./ConnectPage.svelte";
+  import MembersPage from "./MembersPage.svelte";
+  import WorkspacePage from "./WorkspacePage.svelte";
 
   const section = $derived(settingsSectionFromPath(router.path));
 </script>
@@ -15,6 +17,10 @@
     <KeysPage />
   {:else if section === "connect"}
     <ConnectPage />
+  {:else if section === "members"}
+    <MembersPage />
+  {:else if section === "workspace"}
+    <WorkspacePage />
   {:else}
     <AccountPage />
   {/if}

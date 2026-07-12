@@ -168,12 +168,24 @@ func (s *Server) authMode() string {
 }
 
 // handleAuthInfo (public) tells the UI which login flow to present and whether
-// the current request is already authenticated.
+// the current request is already authenticated. It also echoes the
+// server-verified workspace claims (org / slug / role) from the resolved
+// identity, so the UI gates on the same values the backend routes and enforces
+// on — and can detect the transient mismatch while a workspace switch settles.
 func (s *Server) handleAuthInfo(w http.ResponseWriter, r *http.Request) {
-	_, authed := s.auth.Authorize(r)
+	id, authed := s.auth.Authorize(r)
 	out := map[string]any{"mode": s.authMode(), "authenticated": authed}
 	if s.loginURL != "" {
 		out["login_url"] = s.loginURL
+	}
+	if authed {
+		// Surface only the identity fields the workspace UI needs; a key names
+		// them the same way the embedder's CoreResolver reads them.
+		for _, k := range []string{"org", "org_slug", "org_role"} {
+			if v := id.Claims[k]; v != "" {
+				out[k] = v
+			}
+		}
 	}
 	writeJSON(w, http.StatusOK, out)
 }

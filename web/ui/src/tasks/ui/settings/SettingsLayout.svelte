@@ -10,6 +10,8 @@
   import UserIcon from "@lucide/svelte/icons/circle-user-round";
   import KeyIcon from "@lucide/svelte/icons/key-round";
   import PlugIcon from "@lucide/svelte/icons/plug";
+  import UsersIcon from "@lucide/svelte/icons/users";
+  import BuildingIcon from "@lucide/svelte/icons/building-2";
   import { router } from "$shared/router/router.svelte.js";
   import {
     BoardPath,
@@ -17,17 +19,31 @@
     settingsSectionFromPath,
     type SettingsSection,
   } from "$shared/router/routes.js";
+  import { workspaces } from "$shared/auth/workspaces.svelte.js";
   import { Copy } from "$shared/copy.js";
 
   let { children }: { children: Snippet } = $props();
 
   const current = $derived(settingsSectionFromPath(router.path));
 
-  const items: { id: SettingsSection; label: string; icon: typeof UserIcon }[] = [
+  $effect(() => {
+    workspaces.ensureLoaded();
+  });
+
+  // The workspace sections only apply to a shared (Clerk) org, not the personal
+  // board or token/none dev mode.
+  const showWorkspace = $derived(workspaces.available && !workspaces.active.isPersonal);
+  const items = $derived<{ id: SettingsSection; label: string; icon: typeof UserIcon }[]>([
     { id: "account", label: Copy.Account, icon: UserIcon },
     { id: "keys", label: Copy.ApiKeys, icon: KeyIcon },
     { id: "connect", label: Copy.Connect, icon: PlugIcon },
-  ];
+    ...(showWorkspace
+      ? ([
+          { id: "members", label: Copy.Members, icon: UsersIcon },
+          { id: "workspace", label: Copy.Workspace, icon: BuildingIcon },
+        ] as const)
+      : []),
+  ]);
 </script>
 
 <div class="flex h-screen flex-col">
