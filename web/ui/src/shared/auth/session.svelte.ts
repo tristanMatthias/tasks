@@ -10,6 +10,18 @@ class Session {
 
   async load(): Promise<void> {
     this.#loading = true;
+    // In custom (Clerk) mode the board injects window.__authReady, which
+    // resolves once ClerkJS has loaded and refreshed the session cookie. Wait
+    // for it so a signed-in user is recognized as authed (and not flashed the
+    // public landing page) on the first check.
+    const ready = (window as { __authReady?: Promise<unknown> }).__authReady;
+    if (ready) {
+      try {
+        await ready;
+      } catch {
+        /* proceed with whatever cookie exists */
+      }
+    }
     this.#info = await fetchAuthInfo();
     this.#loading = false;
   }

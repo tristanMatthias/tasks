@@ -17,6 +17,7 @@ export default defineConfig(({ command }) => ({
       $tasks: fileURLToPath(new URL("./src/tasks", import.meta.url)),
       $board: fileURLToPath(new URL("./src/board", import.meta.url)),
       $shared: fileURLToPath(new URL("./src/shared", import.meta.url)),
+      $marketing: fileURLToPath(new URL("./src/marketing", import.meta.url)),
     },
   },
   build: {

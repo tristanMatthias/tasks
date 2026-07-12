@@ -16,7 +16,8 @@
       "$lib/*": ["./src/design-system/*"],
       "$tasks/*": ["./src/tasks/*"],
       "$board/*": ["./src/board/*"],
-      "$shared/*": ["./src/shared/*"]
+      "$shared/*": ["./src/shared/*"],
+      "$marketing/*": ["./src/marketing/*"]
     }
   },
   "include": ["src/**/*.ts", "src/**/*.svelte"]
