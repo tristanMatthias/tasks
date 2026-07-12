@@ -49,15 +49,28 @@ export function initialTasks(): Task[] {
   return readCache();
 }
 
-/** Fetch the fresh slim list (via the index.html preload when present) and cache it. */
-export function loadTaskList(): Promise<Task[]> {
+/** Fetch the fresh slim list (via the index.html preload when present) and cache
+ *  it. Returns null when the fetch FAILED (so the caller keeps what's shown);
+ *  an empty array is a real state — a workspace with no tasks — and replaces. */
+export function loadTaskList(): Promise<Task[] | null> {
   const preloaded = typeof window !== "undefined" ? window.__bootTasks : undefined;
   const payload = preloaded ?? fetch(TREE_LIST_URL).then((r) => (r.ok ? r.json() : null));
   return payload.then((data) => {
-    const list = data?.issues ?? [];
-    if (list.length) writeCache(list);
+    if (!data) return null; // fetch failed — don't clobber the current view
+    const list = data.issues ?? [];
+    writeCache(list); // cache even when empty, so this workspace reloads cleanly
     return list;
   });
+}
+
+/** Drop the cached list (e.g. when switching workspaces, so the next board
+ *  doesn't flash the previous workspace's tasks from a stale cache). */
+export function clearTaskListCache(): void {
+  try {
+    localStorage.removeItem(CACHE_KEY);
+  } catch {
+    /* ignore */
+  }
 }
 
 /** The full record for one task (description, dependencies, …). */

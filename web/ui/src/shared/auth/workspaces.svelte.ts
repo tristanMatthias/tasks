@@ -8,6 +8,7 @@
  * works in local token/none dev mode too (the whole system is self-hosted).
  */
 import { toast } from "svelte-sonner";
+import { clearTaskListCache } from "$tasks/data.js";
 
 /** A workspace the user can switch into. */
 export interface Workspace {
@@ -59,6 +60,13 @@ export function roleLabel(role: string): string {
 const PERSONAL_FALLBACK: Workspace = { id: "", name: "Personal", role: "member", isPersonal: true };
 
 const JSON_HEADERS = { "Content-Type": "application/json" };
+
+/** Reload onto the board after a workspace change, dropping the cached task list
+ * so the new board never flashes the previous workspace's tasks. */
+function reloadToBoard(): void {
+  clearTaskListCache();
+  location.assign("/");
+}
 
 async function getJSON<T>(url: string): Promise<T | null> {
   try {
@@ -172,12 +180,12 @@ class Workspaces {
   async switchTo(id: string): Promise<void> {
     if (id === this.#activeId) return;
     const { ok } = await send("/api/workspaces/switch", "POST", { id });
-    if (ok) location.assign("/"); // only reload once the cookie actually changed
+    if (ok) reloadToBoard(); // only reload once the cookie actually changed
   }
 
   async create(name: string): Promise<void> {
     const { ok } = await send("/api/workspaces", "POST", { name });
-    if (ok) location.assign("/"); // server set the active cookie to the new workspace
+    if (ok) reloadToBoard(); // server set the active cookie to the new workspace
   }
 
   #ws(): string {
@@ -267,14 +275,14 @@ class Workspaces {
       `/api/workspaces/${encodeURIComponent(this.#ws())}/members/${encodeURIComponent(this.#userId)}`,
       "DELETE",
     );
-    if (ok) location.assign("/");
+    if (ok) reloadToBoard();
   }
 
   /** Delete the active workspace (admin), then drop to personal. */
   async destroy(): Promise<void> {
     if (!this.#ws()) return;
     const { ok } = await send(`/api/workspaces/${encodeURIComponent(this.#ws())}`, "DELETE");
-    if (ok) location.assign("/");
+    if (ok) reloadToBoard();
   }
 }
 

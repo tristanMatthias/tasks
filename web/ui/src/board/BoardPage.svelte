@@ -46,8 +46,10 @@
   const selectedId = $derived(taskIdFromPath(router.path));
 
   // Refresh in the background; the tree already showed cached data instantly.
+  // A null result means the fetch failed (keep what's shown); an empty list is
+  // a real state (a workspace with no tasks) and must replace the cache.
   loadTaskList().then((list) => {
-    if (list.length) {
+    if (list !== null) {
       tasks = list;
       indexTasks(list);
     }
