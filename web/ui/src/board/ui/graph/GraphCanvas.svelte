@@ -58,6 +58,15 @@
   const isHit = (id: string, t: Task | undefined): boolean =>
     query.length > 0 && `${id} ${t?.title ?? ""}`.toLowerCase().includes(query);
 
+  // Emphasis by direction so the line up to the focus is easy to thread:
+  // focus + everything UPSTREAM stays full; DOWNSTREAM (what the focus blocks /
+  // contains) is dimmed; anything filtered out by the facets is dimmer still.
+  const nodeOpacity = (rank: number, id: string, t: Task | undefined): number => {
+    if (dimmed(id, t)) return 0.3;
+    if (rank > 0) return 0.6;
+    return 1;
+  };
+
   let viewport = $state<HTMLDivElement | null>(null);
   let tx = $state(0);
   let ty = $state(0);
@@ -260,13 +269,12 @@
         <div
           data-node={n.id}
           class={`absolute cursor-pointer rounded-lg border bg-card px-2.5 py-1.5 shadow-sm transition-all hover:border-primary/50 ${
-            n.id !== focusId && isHit(n.id, t) ? "ring-4 ring-[#e0af68]/50" : ""
+            n.id !== focusId && isHit(n.id, t) ? "ring-4 ring-[#e0af68]/30" : ""
           }`}
           class:ring-2={n.id === focusId}
           class:ring-primary={n.id === focusId}
           class:border-primary={n.id === selectedId && n.id !== focusId}
-          class:opacity-35={dimmed(n.id, t)}
-          style="left:{n.x}px; top:{n.y}px; width:{NODE_W}px; height:{NODE_H}px"
+          style="left:{n.x}px; top:{n.y}px; width:{NODE_W}px; height:{NODE_H}px; opacity:{nodeOpacity(n.rank, n.id, t)}"
           ondblclick={() => onFocus(n.id)}
           role="button"
           tabindex="-1"
