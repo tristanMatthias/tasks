@@ -41,6 +41,7 @@ interface Opts {
   parent: boolean;
   maxDepth?: number;
   maxNodes?: number;
+  maxFanout?: number;
 }
 
 function buildDirected(tasks: readonly Task[], focusId: string, opts: Opts): Graph {
@@ -48,6 +49,7 @@ function buildDirected(tasks: readonly Task[], focusId: string, opts: Opts): Gra
   const h = buildHierarchy(tasks);
   const maxDepth = opts.maxDepth ?? 4;
   const maxNodes = opts.maxNodes ?? 60;
+  const maxFanout = opts.maxFanout ?? 12; // cap one node's neighbors per direction
 
   const ranks = new Map<string, number>([[focusId, 0]]);
   const edges: GraphEdge[] = [];
@@ -80,7 +82,8 @@ function buildDirected(tasks: readonly Task[], focusId: string, opts: Opts): Gra
           if (opts.blocks) for (const b of blockingTasks(id, tasks)) neighbors.push([b.id, "blocks"]);
           if (opts.parent) for (const c of h.children.get(id) ?? []) neighbors.push([c, "parent"]);
         }
-        for (const [nid, kind] of neighbors) {
+        // Cap a single node's fan-out so one huge parent can't explode a column.
+        for (const [nid, kind] of neighbors.slice(0, maxFanout)) {
           // Edge always points downstream so arrows read the same everywhere.
           if (dir === -1) addEdge(nid, id, kind);
           else addEdge(id, nid, kind);
@@ -104,20 +107,20 @@ function buildDirected(tasks: readonly Task[], focusId: string, opts: Opts): Gra
 export const GRAPH_KINDS: readonly GraphKind[] = [
   {
     key: "stack",
-    label: "Stack",
-    hint: "Blockers + ancestors above, what it blocks + its subtree below",
+    label: "All",
+    hint: "Dependencies + hierarchy — what blocks it and what it blocks, plus the epic breakdown",
     build: (tasks, focus) => buildDirected(tasks, focus, { blocks: true, parent: true }),
   },
   {
     key: "blocking",
-    label: "Blocking",
-    hint: "Only the dependency chain — what must finish first, and what unblocks next",
+    label: "Blocks",
+    hint: "Just the dependency chain — what must finish first (left) and what this unblocks (right)",
     build: (tasks, focus) => buildDirected(tasks, focus, { blocks: true, parent: false }),
   },
   {
     key: "subtree",
-    label: "Subtree",
-    hint: "Only containment — the epic/parent above and children below",
+    label: "Hierarchy",
+    hint: "Just the breakdown — the parent/epic (left) and its children (right)",
     build: (tasks, focus) => buildDirected(tasks, focus, { blocks: false, parent: true }),
   },
 ];

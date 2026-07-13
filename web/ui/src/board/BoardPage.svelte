@@ -120,6 +120,12 @@
   const centerHere = () => {
     if (selectedId) graphFocusId = selectedId;
   };
+  // From a ticket → open the Graph view rooted on it (the reverse direction).
+  const viewInGraph = (id: string) => {
+    graphFocusId = id;
+    view.current = BoardView.Graph;
+    if (selectedId !== id) openTask(id);
+  };
 </script>
 
 {#snippet mainPanel()}
@@ -145,7 +151,7 @@
     </ResizablePane>
     <ResizableHandle withHandle />
     <ResizablePane id="detail" order={2}>
-      <TaskDetail task={detailTask} {tasks} onPatch={patchTask} onSelect={openTask} />
+      <TaskDetail task={detailTask} {tasks} onPatch={patchTask} onSelect={openTask} onViewGraph={viewInGraph} />
     </ResizablePane>
   </ResizablePaneGroup>
 {:else}
@@ -200,7 +206,7 @@
             {/if}
           </div>
           <div class="min-h-0 flex-1">
-            <TaskDetail task={detailTask} {tasks} meta={false} onPatch={patchTask} onSelect={openTask} />
+            <TaskDetail task={detailTask} {tasks} meta={false} onPatch={patchTask} onSelect={openTask} onViewGraph={viewInGraph} />
           </div>
         </div>
       {/if}

@@ -1,15 +1,16 @@
 /**
- * A lightweight layered (Sugiyama-lite) layout: group nodes into rows by rank,
- * order each row to reduce edge crossings (barycenter sweeps), then assign
- * coordinates and cubic-bezier edge paths. Small graphs (a task's stack), so a
- * few sweeps are plenty and it stays fast on mobile.
+ * A lightweight layered (Sugiyama-lite) layout, flowing LEFT → RIGHT: upstream
+ * columns on the left, the focus in the middle, downstream on the right. Ranks
+ * become columns, so a wide fan-out grows the graph in HEIGHT (vertically
+ * scrollable) rather than width — which fits real screens (and portrait phones)
+ * far better. A few barycenter sweeps keep edge crossings down.
  */
 import type { EdgeKind, Graph } from "$board/model/graph.js";
 
-export const NODE_W = 180;
-export const NODE_H = 48;
-const RANK_GAP = 66;
-const NODE_GAP = 22;
+export const NODE_W = 186;
+export const NODE_H = 46;
+const COL_GAP = 76; // horizontal gap between ranks
+const NODE_GAP = 16; // vertical gap within a column
 
 export interface PositionedNode {
   id: string;
@@ -40,7 +41,6 @@ export function layoutGraph(graph: Graph): Layout {
   const ranks = [...byRank.keys()].sort((a, b) => a - b);
   const order = new Map(ranks.map((r) => [r, byRank.get(r)!] as const));
 
-  // adjacency for crossing reduction
   const adj = new Map<string, string[]>();
   for (const e of graph.edges) {
     (adj.get(e.from) ?? adj.set(e.from, []).get(e.from)!).push(e.to);
@@ -57,21 +57,21 @@ export function layoutGraph(graph: Graph): Layout {
     return ns.reduce((s, n) => s + (idx.get(n) ?? 0), 0) / ns.length;
   };
   for (let sweep = 0; sweep < 5; sweep++) {
-    for (const r of ranks) order.set(r, order.get(r)!.slice().sort((a, b) => bary(a) - bary(b)));
+    for (const r of ranks) order.get(r)!.slice().sort((a, b) => bary(a) - bary(b)).forEach((id, i) => order.get(r)![i] = id);
     reindex();
   }
 
-  const rowWidth = (r: number) => order.get(r)!.length * (NODE_W + NODE_GAP) - NODE_GAP;
-  const maxW = Math.max(0, ...ranks.map(rowWidth));
+  const colHeight = (r: number) => order.get(r)!.length * (NODE_H + NODE_GAP) - NODE_GAP;
+  const maxH = Math.max(0, ...ranks.map(colHeight));
 
   const xy = new Map<string, { x: number; y: number }>();
   const nodes: PositionedNode[] = [];
-  ranks.forEach((r, ri) => {
-    const row = order.get(r)!;
-    const start = (maxW - rowWidth(r)) / 2;
-    const y = ri * (NODE_H + RANK_GAP);
-    row.forEach((id, i) => {
-      const x = start + i * (NODE_W + NODE_GAP);
+  ranks.forEach((r, ci) => {
+    const col = order.get(r)!;
+    const x = ci * (NODE_W + COL_GAP);
+    const start = (maxH - colHeight(r)) / 2;
+    col.forEach((id, i) => {
+      const y = start + i * (NODE_H + NODE_GAP);
       xy.set(id, { x, y });
       nodes.push({ id, rank: r, x, y });
     });
@@ -80,18 +80,18 @@ export function layoutGraph(graph: Graph): Layout {
   const edges: PositionedEdge[] = graph.edges.map((e) => {
     const a = xy.get(e.from)!;
     const b = xy.get(e.to)!;
-    const x1 = a.x + NODE_W / 2;
-    const y1 = a.y + NODE_H;
-    const x2 = b.x + NODE_W / 2;
-    const y2 = b.y;
-    const my = (y1 + y2) / 2;
-    return { from: e.from, to: e.to, kind: e.kind, path: `M${x1},${y1} C${x1},${my} ${x2},${my} ${x2},${y2}` };
+    const x1 = a.x + NODE_W;
+    const y1 = a.y + NODE_H / 2;
+    const x2 = b.x;
+    const y2 = b.y + NODE_H / 2;
+    const mx = (x1 + x2) / 2;
+    return { from: e.from, to: e.to, kind: e.kind, path: `M${x1},${y1} C${mx},${y1} ${mx},${y2} ${x2},${y2}` };
   });
 
   return {
     nodes,
     edges,
-    width: maxW,
-    height: ranks.length ? ranks.length * (NODE_H + RANK_GAP) - RANK_GAP : 0,
+    width: ranks.length ? ranks.length * (NODE_W + COL_GAP) - COL_GAP : 0,
+    height: maxH,
   };
 }

@@ -10,6 +10,7 @@
   import ZoomOutIcon from "@lucide/svelte/icons/minus";
   import FitIcon from "@lucide/svelte/icons/maximize";
   import { shortId, type Task } from "$tasks/model/issue.js";
+  import { ALL_STATUSES, ALL_TYPES, type TaskFilter } from "$tasks/model/filter.js";
   import StatusDot from "$tasks/ui/StatusDot.svelte";
   import TypeBadge from "$tasks/ui/TypeBadge.svelte";
   import type { Graph } from "$board/model/graph.js";
@@ -18,14 +19,30 @@
   interface Props {
     graph: Graph;
     byId: ReadonlyMap<string, Task>;
+    filter: TaskFilter;
     focusId: string;
     selectedId?: string | null;
     onSelect: (id: string) => void;
     onFocus: (id: string) => void;
   }
-  let { graph, byId, focusId, selectedId = null, onSelect, onFocus }: Props = $props();
+  let { graph, byId, filter, focusId, selectedId = null, onSelect, onFocus }: Props = $props();
 
   const layout = $derived(layoutGraph(graph));
+
+  // The board filter applies to the graph: status/type facets DIM non-matching
+  // nodes (dropping them would fragment the chains), and a search query
+  // HIGHLIGHTS matches. The focus is never dimmed.
+  const facetActive = $derived(
+    filter.statuses.length < ALL_STATUSES.length || filter.types.length < ALL_TYPES.length,
+  );
+  const query = $derived(filter.query.trim().toLowerCase());
+  const dimmed = (id: string, t: Task | undefined): boolean =>
+    facetActive &&
+    id !== focusId &&
+    !!t &&
+    !(filter.statuses.includes(t.status) && filter.types.includes(t.issue_type));
+  const isHit = (id: string, t: Task | undefined): boolean =>
+    query.length > 0 && `${id} ${t?.title ?? ""}`.toLowerCase().includes(query);
 
   let viewport = $state<HTMLDivElement | null>(null);
   let tx = $state(0);
@@ -144,11 +161,6 @@
     zoomAt(x, y, e.deltaY < 0 ? 1.1 : 1 / 1.1);
   }
 
-  const isBlocked = (t: Task | undefined) =>
-    !!t &&
-    (t.dependencies ?? []).some(
-      (d) => d.type === "blocks" && byId.get(d.depends_on_id) && byId.get(d.depends_on_id)!.status !== "closed",
-    );
 </script>
 
 <div class="relative h-full min-h-0 w-full overflow-hidden">
@@ -189,11 +201,12 @@
         {@const t = byId.get(n.id)}
         <div
           data-node={n.id}
-          class="absolute cursor-pointer rounded-lg border bg-card px-2.5 py-1.5 shadow-sm transition-colors hover:border-primary/50"
-          class:ring-2={n.id === focusId}
+          class="absolute cursor-pointer rounded-lg border bg-card px-2.5 py-1.5 shadow-sm transition-all hover:border-primary/50"
+          class:ring-2={n.id === focusId || isHit(n.id, t)}
           class:ring-primary={n.id === focusId}
+          class:ring-[#e0af68]={n.id !== focusId && isHit(n.id, t)}
           class:border-primary={n.id === selectedId && n.id !== focusId}
-          class:opacity-60={isBlocked(t) && n.id !== focusId}
+          class:opacity-35={dimmed(n.id, t)}
           style="left:{n.x}px; top:{n.y}px; width:{NODE_W}px; height:{NODE_H}px"
           ondblclick={() => onFocus(n.id)}
           role="button"

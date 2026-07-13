@@ -59,7 +59,7 @@
     {:else if view.current === BoardView.Dashboard}
       <DashboardView {tasks} query={filter.query} sort={sort.current} {onSelect} />
     {:else}
-      <GraphPanel {tasks} focusId={graphFocusId} {selectedId} {onSelect} onFocus={onGraphFocus} />
+      <GraphPanel {tasks} {filter} focusId={graphFocusId} {selectedId} {onSelect} onFocus={onGraphFocus} />
     {/if}
   </div>
 </div>

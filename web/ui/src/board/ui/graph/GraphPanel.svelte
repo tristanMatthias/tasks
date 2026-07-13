@@ -5,22 +5,25 @@
 <script lang="ts">
   import CrosshairIcon from "@lucide/svelte/icons/crosshair";
   import { shortId, type Task } from "$tasks/model/issue.js";
+  import type { TaskFilter } from "$tasks/model/filter.js";
   import { GRAPH_KINDS, graphKind } from "$board/model/graph.js";
   import GraphCanvas from "./GraphCanvas.svelte";
 
   interface Props {
     tasks: readonly Task[];
+    filter: TaskFilter;
     focusId: string | null;
     selectedId?: string | null;
     onSelect: (id: string) => void;
     onFocus: (id: string) => void;
   }
-  let { tasks, focusId, selectedId = null, onSelect, onFocus }: Props = $props();
+  let { tasks, filter, focusId, selectedId = null, onSelect, onFocus }: Props = $props();
 
   let kindKey = $state("stack");
+  const kind = $derived(graphKind(kindKey));
   const byId = $derived(new Map(tasks.map((t) => [t.id, t] as const)));
   const focusTask = $derived(focusId ? byId.get(focusId) : undefined);
-  const graph = $derived(focusTask && focusId ? graphKind(kindKey).build(tasks, focusId) : null);
+  const graph = $derived(focusTask && focusId ? kind.build(tasks, focusId) : null);
 </script>
 
 <div class="flex h-full min-h-0 flex-col">
@@ -58,10 +61,12 @@
       </button>
     {/if}
   </div>
+  <!-- what the selected kind actually shows, so it's never a mystery -->
+  <div class="truncate border-b px-3 py-1 text-[11px] text-muted-foreground">{kind.hint}</div>
 
   <div class="min-h-0 flex-1">
     {#if graph && focusId}
-      <GraphCanvas {graph} {byId} {focusId} {selectedId} {onSelect} {onFocus} />
+      <GraphCanvas {graph} {byId} {filter} {focusId} {selectedId} {onSelect} {onFocus} />
     {:else}
       <div class="grid h-full place-items-center p-8 text-center text-sm text-muted-foreground">
         Select a task to see it in the context of its stack.

@@ -1,5 +1,7 @@
 <script lang="ts">
   import { ScrollArea } from "$lib/components/ui/scroll-area/index.js";
+  import { Button } from "$lib/components/ui/button/index.js";
+  import WaypointsIcon from "@lucide/svelte/icons/waypoints";
   import { Copy } from "$shared/copy.js";
   import { buildHierarchy, parentId } from "$tasks/model/hierarchy.js";
   import { blockingTasks, type Task } from "$tasks/model/issue.js";
@@ -18,10 +20,12 @@
     onPatch?: (id: string, patch: Partial<Task>) => void;
     /** Navigate to another task (child / blocked task). */
     onSelect?: (id: string) => void;
+    /** Open the Graph view rooted on this task (shown when provided). */
+    onViewGraph?: (id: string) => void;
     /** Show the meta line (type/status/priority/id). Off when a header shows it. */
     meta?: boolean;
   }
-  let { task, tasks, onPatch, onSelect, meta = true }: Props = $props();
+  let { task, tasks, onPatch, onSelect, onViewGraph, meta = true }: Props = $props();
 
   const hierarchy = $derived(buildHierarchy(tasks));
   const childCount = $derived(task ? (hierarchy.children.get(task.id)?.length ?? 0) : 0);
@@ -52,11 +56,24 @@
   <ScrollArea class="h-full">
     <div class="mx-auto max-w-2xl space-y-6 px-6 py-6">
       <div>
-        {#if meta}
-          <div class="mb-3">
+        <div class="mb-3 flex items-start justify-between gap-3">
+          {#if meta}
             <TaskMeta {task} onPatch={(patch) => onPatch?.(task.id, patch)} />
-          </div>
-        {/if}
+          {:else}
+            <span></span>
+          {/if}
+          {#if onViewGraph}
+            <Button
+              variant="outline"
+              size="sm"
+              class="shrink-0 gap-1.5"
+              onclick={() => onViewGraph?.(task.id)}
+              title="See this task in the context of its stack"
+            >
+              <WaypointsIcon class="size-4" /> View in graph
+            </Button>
+          {/if}
+        </div>
         <h1 class="text-xl font-semibold leading-snug">{task.title || Copy.UntitledTask}</h1>
       </div>
 
