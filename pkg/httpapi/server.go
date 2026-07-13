@@ -51,6 +51,7 @@ type Server struct {
 
 	hub      *wsHub
 	topicFor func(r *http.Request) string
+	csp      string
 
 	mu         sync.RWMutex
 	lastChange time.Time
@@ -79,6 +80,12 @@ type Config struct {
 	// sockets. nil -> a single global topic (single-tenant). It MUST derive the
 	// same key used to route Publish calls (typically the org id).
 	TopicFor func(r *http.Request) string
+
+	// CSP overrides the Content-Security-Policy header. Set it when the UI must
+	// reach an external origin (e.g. a hosted identity provider whose scripts and
+	// API calls the default 'self'-only policy would block). Empty -> the strict
+	// default. Must be kept in sync with whatever InjectHead loads.
+	CSP string
 
 	// LoginURL, when set, is reported by /api/authinfo so the UI redirects an
 	// unauthenticated visitor to a hosted sign-in page (used with a custom Auth).
@@ -144,6 +151,7 @@ func New(cfg Config) *Server {
 		metrics:             newMetrics(now),
 		hub:                 newWSHub(),
 		topicFor:            cfg.TopicFor,
+		csp:                 cfg.CSP,
 		lastChange:          now,
 	}
 	if cfg.RateLimit > 0 {
@@ -253,7 +261,7 @@ func (s *Server) Handler() http.Handler {
 	if len(s.corsOrigins) > 0 {
 		h = cors(s.corsOrigins, h)
 	}
-	h = securityHeaders(h)
+	h = securityHeaders(s.csp, h)
 	h = s.metrics.middleware(h)
 	h = accessLog(s.logger, s.behindProxy, h)
 	h = requestIDMiddleware(h)

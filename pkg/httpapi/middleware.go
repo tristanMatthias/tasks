@@ -159,17 +159,23 @@ func accessLog(logger *slog.Logger, behindProxy bool, next http.Handler) http.Ha
 	})
 }
 
+// defaultCSP locks the self-contained UI to its own origin. An embedder whose
+// UI must reach an external identity provider (e.g. Clerk) overrides it via
+// Config.CSP — otherwise that provider's scripts/XHR are silently blocked and
+// its session never establishes.
+const defaultCSP = "default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self'; connect-src 'self'"
+
 // securityHeaders sets conservative security headers on every response.
-func securityHeaders(next http.Handler) http.Handler {
+func securityHeaders(csp string, next http.Handler) http.Handler {
+	if csp == "" {
+		csp = defaultCSP
+	}
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		h := w.Header()
 		h.Set("X-Content-Type-Options", "nosniff")
 		h.Set("X-Frame-Options", "DENY")
 		h.Set("Referrer-Policy", "no-referrer")
-		// The UI is self-contained (no external origins); allow inline styles/scripts
-		// it already uses, block everything else.
-		h.Set("Content-Security-Policy",
-			"default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self'; connect-src 'self'")
+		h.Set("Content-Security-Policy", csp)
 		next.ServeHTTP(w, r)
 	})
 }

@@ -68,7 +68,7 @@ func TestSecurityHeadersAndRequestID(t *testing.T) {
 	defer resp.Body.Close()
 	if resp.Header.Get("X-Content-Type-Options") != "nosniff" ||
 		resp.Header.Get("X-Frame-Options") != "DENY" ||
-		resp.Header.Get("Content-Security-Policy") == "" ||
+		resp.Header.Get("Content-Security-Policy") != defaultCSP ||
 		resp.Header.Get("X-Request-Id") == "" {
 		t.Fatalf("missing security headers: %v", resp.Header)
 	}
@@ -80,6 +80,28 @@ func TestSecurityHeadersAndRequestID(t *testing.T) {
 	if r2.Header.Get("X-Request-Id") != "my-trace-id" {
 		t.Fatalf("request id not echoed: %s", r2.Header.Get("X-Request-Id"))
 	}
+}
+
+func TestCustomCSP(t *testing.T) {
+	custom := "default-src 'self'; script-src 'self' https://clerk.example.com 'unsafe-inline'; connect-src 'self' https://clerk.example.com"
+	ts := prodServer(t, Config{Token: "tok", CSP: custom})
+	resp, err := http.DefaultClient.Do(mustReq(t, "GET", ts.URL+"/healthz"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	if got := resp.Header.Get("Content-Security-Policy"); got != custom {
+		t.Fatalf("CSP override not applied:\n got: %s\nwant: %s", got, custom)
+	}
+}
+
+func mustReq(t *testing.T, method, url string) *http.Request {
+	t.Helper()
+	req, err := http.NewRequest(method, url, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return req
 }
 
 func TestRateLimit(t *testing.T) {
