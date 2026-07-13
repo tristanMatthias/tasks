@@ -30,7 +30,7 @@ func newServer(t *testing.T, token string) *httptest.Server {
 		t.Fatal(err)
 	}
 	changes := 0
-	c.SetOnChange(func() { changes++ })
+	c.SetOnChange(func(ids []string) { changes++ })
 	srv := New(Config{Core: c, Static: web.Static(), Token: token})
 	ts := httptest.NewServer(srv.Handler())
 	t.Cleanup(ts.Close)

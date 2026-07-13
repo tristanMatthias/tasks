@@ -142,9 +142,10 @@ func serve(args []string, getenv func(string) string) error {
 	exp := exporter.New(c, exporter.Config{
 		Path: cfg.Export, Interval: cfg.ExportInterval, Git: cfg.Git, GitPush: cfg.GitPush,
 	}, func(format string, a ...any) { logger.Info(fmt.Sprintf(format, a...)) })
-	c.SetOnChange(func() {
+	c.SetOnChange(func(ids []string) {
 		srv.Touch()
 		exp.Notify()
+		srv.Publish("", ids) // single-tenant: one global topic
 	})
 
 	httpSrv := &http.Server{

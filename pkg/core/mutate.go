@@ -108,7 +108,7 @@ func (c *Core) Create(p CreateParams) (*model.Task, error) {
 	if err := c.st.Insert(t); err != nil {
 		return nil, wrap("create", err)
 	}
-	c.changed()
+	c.changed(id)
 	return c.st.Get(id)
 }
 
@@ -252,7 +252,7 @@ func (c *Core) Update(id string, p UpdateParams) (*model.Task, error) {
 		}
 	}
 	if p.Claim || len(set) > 0 {
-		c.changed()
+		c.changed(id)
 	}
 	return c.st.Get(id)
 }
@@ -274,7 +274,7 @@ func (c *Core) Close(id string, p CloseParams) (*model.Task, error) {
 	if err := c.st.Patch(id, set, now); err != nil {
 		return nil, wrap("close", err)
 	}
-	c.changed()
+	c.changed(id)
 	return c.st.Get(id)
 }
 
@@ -300,7 +300,7 @@ func (c *Core) AddDep(blocked, blocker, dtype, actor string) error {
 	}); err != nil {
 		return err
 	}
-	c.changed()
+	c.changed(blocked, blocker)
 	return nil
 }
 
@@ -321,7 +321,7 @@ func (c *Core) Comment(id, text, author string) (*model.Task, error) {
 	if err := c.st.AddComment(cm); err != nil {
 		return nil, wrap("comment", err)
 	}
-	c.changed()
+	c.changed(id)
 	return c.st.Get(id)
 }
 

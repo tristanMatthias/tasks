@@ -23,7 +23,8 @@ func gzipMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		p := r.URL.Path
 		if !strings.Contains(r.Header.Get("Accept-Encoding"), "gzip") ||
-			strings.HasPrefix(p, "/static/") || strings.HasPrefix(p, "/mcp") {
+			strings.HasPrefix(p, "/static/") || strings.HasPrefix(p, "/mcp") ||
+			p == "/api/ws" { // WebSocket upgrade: never compress/wrap
 			next.ServeHTTP(w, r)
 			return
 		}
@@ -42,6 +43,10 @@ type gzipResponseWriter struct {
 }
 
 func (g *gzipResponseWriter) Write(b []byte) (int, error) { return g.gz.Write(b) }
+
+// Unwrap exposes the underlying writer to http.ResponseController (so hijacking
+// for a WebSocket upgrade can reach the base http.Hijacker through this wrapper).
+func (g *gzipResponseWriter) Unwrap() http.ResponseWriter { return g.ResponseWriter }
 
 func (g *gzipResponseWriter) Flush() {
 	_ = g.gz.Flush()
@@ -81,6 +86,10 @@ func (r *responseRecorder) Flush() {
 		f.Flush()
 	}
 }
+
+// Unwrap exposes the underlying writer to http.ResponseController so a WebSocket
+// upgrade can hijack the base connection through the logging/metrics wrapper.
+func (r *responseRecorder) Unwrap() http.ResponseWriter { return r.ResponseWriter }
 
 // recoverer turns a panic in any handler into a 500 and logs the stack.
 func recoverer(logger *slog.Logger, next http.Handler) http.Handler {

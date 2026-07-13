@@ -22,18 +22,20 @@ type Core struct {
 	actor       string
 	keySelector string // opaque routing prefix embedded in minted API tokens (empty in single-tenant)
 	nowFunc     func() time.Time
-	onChange    func() // fired after every successful mutation, any surface
+	onChange    func(ids []string) // fired after every successful mutation, any surface
 }
 
 // SetOnChange registers a hook invoked after each successful mutation (create,
-// update, claim, close, dep, comment). Used to drive the UI mtime signal and
-// the debounced JSONL exporter uniformly across HTTP, MCP and CLI callers.
-func (c *Core) SetOnChange(fn func()) { c.onChange = fn }
+// update, claim, close, dep, comment). It receives the ids of the task(s)
+// affected, so a listener can push a targeted live update. Used to drive the UI
+// mtime signal, the debounced JSONL exporter and WebSocket broadcasts uniformly
+// across HTTP, MCP and CLI callers.
+func (c *Core) SetOnChange(fn func(ids []string)) { c.onChange = fn }
 
-// changed fires the onChange hook if set.
-func (c *Core) changed() {
+// changed fires the onChange hook if set, naming the affected task id(s).
+func (c *Core) changed(ids ...string) {
 	if c.onChange != nil {
-		c.onChange()
+		c.onChange(ids)
 	}
 }
 

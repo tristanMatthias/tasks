@@ -16,6 +16,7 @@
   import { IssueType, type Task } from "$tasks/model/issue.js";
   import { initialTasks, loadTaskList, fetchTaskDetail, updateTask } from "$tasks/data.js";
   import { indexTasks } from "$tasks/markdown/task-index.svelte.js";
+  import { LiveConnection } from "$shared/realtime/live.js";
   import { createPersistedFilter } from "./board-filter.svelte.js";
   import { createPersistedView, BoardView } from "./board-view.svelte.js";
   import { createPersistedSort } from "./board-sort.svelte.js";
@@ -56,6 +57,38 @@
       tasks = list;
       indexTasks(list);
     }
+  });
+
+  // Live updates: the server pushes a "changed" signal after any mutation (this
+  // tab, another tab, an agent via API/MCP/CLI). We reuse the normal load path —
+  // refetch the slim list + the open task's full record — so the store shape is
+  // identical and there's no partial-merge to keep in sync. Debounced so a burst
+  // of edits coalesces into one refresh.
+  let liveTimer: ReturnType<typeof setTimeout> | null = null;
+  function onLiveChange(ids: string[]): void {
+    if (liveTimer) clearTimeout(liveTimer);
+    liveTimer = setTimeout(() => {
+      loadTaskList().then((list) => {
+        if (list !== null) {
+          tasks = list;
+          indexTasks(list);
+        }
+      });
+      const open = selectedId;
+      if (open !== null && (ids.length === 0 || ids.includes(open))) {
+        fetchTaskDetail(open).then((full) => {
+          if (full && selectedId === open) detailTask = full;
+        });
+      }
+    }, 120);
+  }
+  $effect(() => {
+    const live = new LiveConnection((msg) => onLiveChange(msg.ids ?? []));
+    live.start();
+    return () => {
+      live.stop();
+      if (liveTimer) clearTimeout(liveTimer);
+    };
   });
 
   // Detail-on-demand: show the slim row instantly, then fetch the full record.

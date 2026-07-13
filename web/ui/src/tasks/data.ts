@@ -54,6 +54,9 @@ export function initialTasks(): Task[] {
  *  an empty array is a real state — a workspace with no tasks — and replaces. */
 export function loadTaskList(): Promise<Task[] | null> {
   const preloaded = typeof window !== "undefined" ? window.__bootTasks : undefined;
+  // Consume the one-shot preload so later calls (e.g. a live WebSocket refresh)
+  // fetch fresh instead of re-resolving the stale boot payload.
+  if (typeof window !== "undefined" && window.__bootTasks) window.__bootTasks = undefined;
   const payload = preloaded ?? fetch(TREE_LIST_URL).then((r) => (r.ok ? r.json() : null));
   return payload.then((data) => {
     if (!data) return null; // fetch failed — don't clobber the current view

@@ -49,6 +49,9 @@ type Server struct {
 	rl      *rateLimiter
 	metrics *metrics
 
+	hub      *wsHub
+	topicFor func(r *http.Request) string
+
 	mu         sync.RWMutex
 	lastChange time.Time
 }
@@ -70,6 +73,12 @@ type Config struct {
 
 	// Resolve selects the Core per request (for embedders). nil -> always Core.
 	Resolve CoreResolver
+
+	// TopicFor maps a request to the tenant/board key its live (WebSocket) updates
+	// belong to, so a mutation in one workspace only reaches that workspace's
+	// sockets. nil -> a single global topic (single-tenant). It MUST derive the
+	// same key used to route Publish calls (typically the org id).
+	TopicFor func(r *http.Request) string
 
 	// LoginURL, when set, is reported by /api/authinfo so the UI redirects an
 	// unauthenticated visitor to a hosted sign-in page (used with a custom Auth).
@@ -133,6 +142,8 @@ func New(cfg Config) *Server {
 		behindProxy:         cfg.BehindProxy,
 		metricsOn:           cfg.Metrics,
 		metrics:             newMetrics(now),
+		hub:                 newWSHub(),
+		topicFor:            cfg.TopicFor,
 		lastChange:          now,
 	}
 	if cfg.RateLimit > 0 {
@@ -178,6 +189,7 @@ func (s *Server) Handler() http.Handler {
 	app.HandleFunc("GET /api/meta", s.handleMeta)
 	app.HandleFunc("POST /api/pull", s.handlePull)
 	app.HandleFunc("POST /api/v1/import", s.handleImport)
+	app.HandleFunc("GET /api/ws", s.handleWS)
 	for _, op := range api.Ops() {
 		app.HandleFunc(op.Method+" "+op.Path, s.opHandler(op))
 	}
