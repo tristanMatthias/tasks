@@ -36,6 +36,8 @@
 <div
   role="button"
   tabindex="0"
+  data-testid="tree-row"
+  data-task-id={task.id}
   aria-current={selected}
   class={cn(
     "group flex cursor-pointer select-none items-center gap-1.5 rounded-md pr-2 text-sm",

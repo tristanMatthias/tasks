@@ -37,6 +37,7 @@
     <button
       {...props}
       type="button"
+      data-testid="status-trigger"
       title={Copy.ChangeStatus}
       class="inline-flex items-center rounded-[3px] outline-none ring-ring ring-offset-2 ring-offset-background transition hover:opacity-80 focus-visible:ring-2"
     >
@@ -48,6 +49,7 @@
     {#each ALL_STATUSES as option (option)}
       <button
         type="button"
+        data-testid="status-option-{option}"
         onclick={() => select(option)}
         class="flex items-center justify-between gap-3 rounded-md px-2 py-2 text-left text-base transition hover:bg-accent"
       >

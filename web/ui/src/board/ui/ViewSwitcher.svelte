@@ -37,6 +37,7 @@
       {@const Icon = v.icon}
       <TabsTrigger
         value={v.value}
+        data-testid="view-{v.value}"
         class="text-xs text-muted-foreground data-[state=active]:bg-accent data-[state=active]:text-foreground data-[state=active]:shadow-sm"
       >
         <Icon />

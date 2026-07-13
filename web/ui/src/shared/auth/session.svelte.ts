@@ -8,6 +8,7 @@ interface ClerkLike {
   user?: unknown;
   session?: { getToken?: (opts?: { skipCache?: boolean }) => Promise<unknown> } | null;
   addListener?: (cb: (e: { user?: unknown }) => void) => void;
+  signOut?: (opts?: unknown) => Promise<unknown>;
 }
 const clerk = (): ClerkLike | undefined => (window as { Clerk?: ClerkLike }).Clerk;
 
@@ -97,6 +98,19 @@ class Session {
   }
 
   async logout(): Promise<void> {
+    // In custom (Clerk) mode, clearing only the server session cookie isn't
+    // enough: ClerkJS still holds the client session, so __client_uat / Clerk.user
+    // keep `authenticated` true and the user appears logged in. Sign out of Clerk
+    // first — that clears the client session, __session and __client_uat.
+    const c = clerk();
+    if (this.mode === "custom" && c?.signOut) {
+      try {
+        await c.signOut();
+      } catch {
+        /* fall through to server logout + reload */
+      }
+      this.#clerkUser = false;
+    }
     await apiLogout();
     await this.load();
   }

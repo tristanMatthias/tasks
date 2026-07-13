@@ -21,6 +21,7 @@
     {value}
     oninput={(e) => (value = e.currentTarget.value)}
     {placeholder}
+    data-testid="search"
     class="h-8 pl-8 pr-8"
   />
   {#if value}

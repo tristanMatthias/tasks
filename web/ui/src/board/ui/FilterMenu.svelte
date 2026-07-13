@@ -45,7 +45,7 @@
 
 <ResponsiveMenu title={viewState ? Copy.ViewAndFilters : Copy.Filters} align="end" class="w-72" overlay={false}>
   {#snippet trigger({ props })}
-    <Button {...props} variant="ghost" size="sm" class="gap-1.5">
+    <Button {...props} data-testid="filter-menu-trigger" variant="ghost" size="sm" class="gap-1.5">
       <SlidersIcon class="size-4" />
       {Copy.Filters}
       {#if hiddenCount > 0}

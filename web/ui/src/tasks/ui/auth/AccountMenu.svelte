@@ -16,7 +16,7 @@
 <DropdownMenu.Root>
   <DropdownMenu.Trigger>
     {#snippet child({ props })}
-      <Button {...props} variant="ghost" size="icon" class="size-8" title={Copy.Settings}>
+      <Button {...props} data-testid="account-menu-trigger" variant="ghost" size="icon" class="size-8" title={Copy.Settings}>
         <SettingsIcon class="size-4" />
       </Button>
     {/snippet}
@@ -33,7 +33,7 @@
     </DropdownMenu.Item>
     {#if session.canLogout}
       <DropdownMenu.Separator />
-      <DropdownMenu.Item variant="destructive" onSelect={() => session.logout()}>
+      <DropdownMenu.Item variant="destructive" data-testid="logout" onSelect={() => session.logout()}>
         <LogOutIcon class="size-4" />
         {Copy.LogOut}
       </DropdownMenu.Item>
