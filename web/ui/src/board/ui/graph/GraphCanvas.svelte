@@ -49,10 +49,42 @@
   const isHit = (id: string, t: Task | undefined): boolean =>
     query.length > 0 && `${id} ${t?.title ?? ""}`.toLowerCase().includes(query);
 
-  // Emphasis by direction so the line up to the focus is easy to thread: the
-  // focus + everything UPSTREAM stays full; DOWNSTREAM (what it blocks/contains)
-  // is dimmed.
-  const nodeOpacity = (rank: number): number => (rank > 0 ? 0.6 : 1);
+  // The "through line": the node you're looking at (the selected one, or the
+  // focus if nothing's selected) plus EVERYTHING upstream of it — its blockers
+  // and ancestors, transitively. Those stay 100%; everything else dims to 0.6,
+  // so the whole hierarchy above what you're viewing is easy to trace.
+  // Trace from whatever node you're actually on: the one under the cursor
+  // (hover), else the open/selected task, else the graph focus. So the line
+  // updates as you move around — no click required.
+  let hoveredId = $state<string | null>(null);
+  const emphasisId = $derived(hoveredId ?? selectedId ?? focusId);
+  const lit = $derived.by(() => {
+    const incoming = new Map<string, string[]>();
+    for (const e of graph.edges) {
+      const arr = incoming.get(e.to);
+      if (arr) arr.push(e.from);
+      else incoming.set(e.to, [e.from]);
+    }
+    const set = new Set<string>();
+    if (emphasisId) {
+      set.add(emphasisId);
+      const stack = [emphasisId];
+      while (stack.length) {
+        const id = stack.pop() as string;
+        for (const from of incoming.get(id) ?? []) {
+          if (!set.has(from)) {
+            set.add(from);
+            stack.push(from);
+          }
+        }
+      }
+    }
+    return set;
+  });
+  const nodeOpacity = (id: string): number => (lit.has(id) ? 1 : 0.6);
+  // An edge belongs to the through line only when BOTH endpoints are lit.
+  const edgeOpacity = (from: string, to: string): number =>
+    lit.has(from) && lit.has(to) ? 0.9 : 0.3;
 
   let viewport = $state<HTMLDivElement | null>(null);
   let tx = $state(0);
@@ -238,10 +270,14 @@
       <!-- edges -->
       <svg width={layout.width} height={layout.height} class="pointer-events-none absolute left-0 top-0 overflow-visible">
         <defs>
-          <!-- context-stroke → the arrow inherits its line's colour; orient=auto
-               rotates it to the direction the line arrives from. -->
-          <marker id="gh-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto">
-            <path d="M0.5,0.5 L9,5 L0.5,9.5 Z" fill="context-stroke" />
+          <!-- One marker per edge colour (context-stroke isn't honoured in
+               Safari, so the arrow was rendering black); orient=auto rotates it
+               to the direction the line arrives from. -->
+          <marker id="gh-arrow-blocks" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+            <path d="M0.5,0.5 L9,5 L0.5,9.5 Z" fill="var(--muted-foreground)" />
+          </marker>
+          <marker id="gh-arrow-parent" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+            <path d="M0.5,0.5 L9,5 L0.5,9.5 Z" fill="var(--border)" />
           </marker>
         </defs>
         {#each layout.edges as e (e.from + e.to)}
@@ -251,8 +287,8 @@
             stroke={e.kind === "blocks" ? "var(--muted-foreground)" : "var(--border)"}
             stroke-width="1.5"
             stroke-dasharray={e.kind === "parent" ? "5 5" : "0"}
-            marker-end="url(#gh-arrow)"
-            opacity="0.8"
+            marker-end={e.kind === "blocks" ? "url(#gh-arrow-blocks)" : "url(#gh-arrow-parent)"}
+            opacity={edgeOpacity(e.from, e.to)}
           />
         {/each}
       </svg>
@@ -268,7 +304,9 @@
           class:ring-2={n.id === focusId}
           class:ring-primary={n.id === focusId}
           class:border-primary={n.id === selectedId && n.id !== focusId}
-          style="left:{n.x}px; top:{n.y}px; width:{NODE_W}px; height:{NODE_H}px; opacity:{nodeOpacity(n.rank)}"
+          style="left:{n.x}px; top:{n.y}px; width:{NODE_W}px; height:{NODE_H}px; opacity:{nodeOpacity(n.id)}"
+          onmouseenter={() => (hoveredId = n.id)}
+          onmouseleave={() => (hoveredId = null)}
           ondblclick={() => onFocus(n.id)}
           role="button"
           tabindex="-1"

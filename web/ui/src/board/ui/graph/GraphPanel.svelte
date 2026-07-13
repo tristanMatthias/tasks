@@ -7,6 +7,9 @@
   import { shortId, type Task } from "$tasks/model/issue.js";
   import type { TaskFilter } from "$tasks/model/filter.js";
   import { GRAPH_KINDS, graphKind } from "$board/model/graph.js";
+  import SearchInput from "$lib/components/SearchInput.svelte";
+  import FilterMenu from "$board/ui/FilterMenu.svelte";
+  import { Copy } from "$shared/copy.js";
   import GraphCanvas from "./GraphCanvas.svelte";
 
   interface Props {
@@ -61,7 +64,11 @@
         </button>
       {/each}
     </div>
-    {#if focusTask && focusId}
+    {#if isFull}
+      <!-- Full-page hides the board's own toolbar, so bring search + filters here. -->
+      <SearchInput bind:value={filter.query} placeholder={Copy.SearchPlaceholder} class="ml-1 min-w-0 flex-1" />
+      <FilterMenu {filter} />
+    {:else if focusTask && focusId}
       <div class="ml-1 min-w-0 flex-1 truncate text-xs text-muted-foreground">
         <span class="font-mono">{shortId(focusId)}</span>
         <span class="opacity-60">·</span>
