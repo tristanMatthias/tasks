@@ -14,8 +14,7 @@
   import TreeToolbar from "./TreeToolbar.svelte";
   import Tree from "./Tree.svelte";
   import DashboardView from "./DashboardView.svelte";
-  import NetworkIcon from "@lucide/svelte/icons/network";
-  import { Copy } from "$shared/copy.js";
+  import GraphPanel from "./graph/GraphPanel.svelte";
 
   interface Props {
     tasks: readonly Task[];
@@ -25,8 +24,21 @@
     selectedId?: string | null;
     onSelect: (id: string) => void;
     onPatch: (id: string, patch: Partial<Task>) => void;
+    /** Graph view: the task the graph is rooted on, and re-root handler. */
+    graphFocusId?: string | null;
+    onGraphFocus?: (id: string) => void;
   }
-  let { tasks, filter, view, sort, selectedId = null, onSelect, onPatch }: Props = $props();
+  let {
+    tasks,
+    filter,
+    view,
+    sort,
+    selectedId = null,
+    onSelect,
+    onPatch,
+    graphFocusId = null,
+    onGraphFocus = () => {},
+  }: Props = $props();
 
   let tree = $state<{ expandAll(): void; collapseAll(): void }>();
   const isTree = $derived(view.current === BoardView.Tree);
@@ -47,10 +59,7 @@
     {:else if view.current === BoardView.Dashboard}
       <DashboardView {tasks} query={filter.query} sort={sort.current} {onSelect} />
     {:else}
-      <div class="flex h-full flex-col items-center justify-center gap-2 p-8 text-muted-foreground">
-        <NetworkIcon class="size-8" />
-        <p class="text-sm">{Copy.GraphComingSoon}</p>
-      </div>
+      <GraphPanel {tasks} focusId={graphFocusId} {selectedId} {onSelect} onFocus={onGraphFocus} />
     {/if}
   </div>
 </div>

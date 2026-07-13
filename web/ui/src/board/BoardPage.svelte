@@ -1,5 +1,6 @@
 <script lang="ts">
   import { untrack } from "svelte";
+  import { fly } from "svelte/transition";
   import {
     ResizablePaneGroup,
     ResizablePane,
@@ -7,14 +8,16 @@
   } from "$lib/components/ui/resizable/index.js";
   import { Button } from "$lib/components/ui/button/index.js";
   import ArrowLeftIcon from "@lucide/svelte/icons/arrow-left";
+  import XIcon from "@lucide/svelte/icons/x";
+  import CrosshairIcon from "@lucide/svelte/icons/crosshair";
   import MainPanel from "./ui/MainPanel.svelte";
   import TaskDetail from "$tasks/ui/TaskDetail.svelte";
   import TaskMeta from "$tasks/ui/TaskMeta.svelte";
-  import type { Task } from "$tasks/model/issue.js";
+  import { IssueType, type Task } from "$tasks/model/issue.js";
   import { initialTasks, loadTaskList, fetchTaskDetail, updateTask } from "$tasks/data.js";
   import { indexTasks } from "$tasks/markdown/task-index.svelte.js";
   import { createPersistedFilter } from "./board-filter.svelte.js";
-  import { createPersistedView } from "./board-view.svelte.js";
+  import { createPersistedView, BoardView } from "./board-view.svelte.js";
   import { createPersistedSort } from "./board-sort.svelte.js";
   import { router } from "$shared/router/router.svelte.js";
   import { BoardPath, taskPath, taskIdFromPath } from "$shared/router/routes.js";
@@ -94,10 +97,43 @@
 
   const openTask = (id: string) => router.navigate(taskPath(id));
   const backToList = () => router.navigate(BoardPath);
+
+  // The Graph view is ROOTED on a pinned task (not the transient selection), so
+  // clicking a node updates the detail pane without the graph jumping. Root it on
+  // the open task when you enter the view; re-root explicitly via double-click
+  // (desktop) or "Center here" (mobile).
+  let graphFocusId = $state<string | null>(null);
+  $effect(() => {
+    const activeGraph = view.current === BoardView.Graph;
+    const list = tasks;
+    const sel = selectedId;
+    if (!activeGraph || !list.length) return;
+    untrack(() => {
+      const valid = graphFocusId && list.some((t) => t.id === graphFocusId);
+      if (!valid) graphFocusId = sel ?? list.find((t) => t.issue_type === IssueType.Epic)?.id ?? list[0]?.id ?? null;
+    });
+  });
+  const refocus = (id: string) => {
+    graphFocusId = id;
+    openTask(id);
+  };
+  const centerHere = () => {
+    if (selectedId) graphFocusId = selectedId;
+  };
 </script>
 
 {#snippet mainPanel()}
-  <MainPanel {tasks} filter={filter.current} {view} {sort} {selectedId} onSelect={openTask} onPatch={patchTask} />
+  <MainPanel
+    {tasks}
+    filter={filter.current}
+    {view}
+    {sort}
+    {selectedId}
+    onSelect={openTask}
+    onPatch={patchTask}
+    {graphFocusId}
+    onGraphFocus={refocus}
+  />
 {/snippet}
 
 {#if isDesktop.matches}
@@ -117,28 +153,57 @@
        invisible, not display:none) under the opaque detail overlay — so the
        virtualizer keeps its rows measured and returning to the list is instant. -->
   <div class="relative h-full min-h-0">
-    <div class="h-full min-h-0" class:invisible={selectedId !== null}>
-      {@render mainPanel()}
-    </div>
-    {#if selectedId !== null}
-      <div class="absolute inset-0 flex min-h-0 flex-col bg-background">
-        <div class="flex items-center gap-2 border-b px-2 py-1.5">
-          <Button variant="ghost" size="sm" class="shrink-0 gap-1.5" onclick={backToList}>
-            <ArrowLeftIcon class="size-4" />
-            {Copy.Back}
-          </Button>
-          {#if detailTask}
-            <div
-              class="ml-auto flex min-w-0 items-center justify-end overflow-x-auto [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
-            >
-              <TaskMeta task={detailTask} onPatch={(patch) => patchTask(detailTask.id, patch)} />
-            </div>
-          {/if}
-        </div>
-        <div class="min-h-0 flex-1">
-          <TaskDetail task={detailTask} {tasks} meta={false} onPatch={patchTask} onSelect={openTask} />
-        </div>
+    {#if view.current === BoardView.Graph}
+      <!-- Graph stays full-screen + interactive; a non-modal peek sheet shows the
+           tapped node so you can keep exploring the graph above it. -->
+      <div class="h-full min-h-0">
+        {@render mainPanel()}
       </div>
+      {#if selectedId !== null && detailTask}
+        <div
+          class="absolute inset-x-0 bottom-0 z-20 flex max-h-[64%] flex-col rounded-t-2xl border bg-background shadow-2xl shadow-black/50"
+          transition:fly={{ y: 500, duration: 300 }}
+        >
+          <div class="flex flex-col items-center pt-2">
+            <div class="h-1 w-9 rounded-full bg-border"></div>
+          </div>
+          <div class="mt-1 flex items-center gap-2 border-b px-3 py-2">
+            <Button variant="outline" size="sm" class="gap-1.5" onclick={centerHere}>
+              <CrosshairIcon class="size-4" /> Center here
+            </Button>
+            <Button variant="ghost" size="icon" class="ml-auto size-8" onclick={backToList}>
+              <XIcon class="size-4" />
+            </Button>
+          </div>
+          <div class="min-h-0 flex-1 overflow-y-auto">
+            <TaskDetail task={detailTask} {tasks} onPatch={patchTask} onSelect={openTask} />
+          </div>
+        </div>
+      {/if}
+    {:else}
+      <div class="h-full min-h-0" class:invisible={selectedId !== null}>
+        {@render mainPanel()}
+      </div>
+      {#if selectedId !== null}
+        <div class="absolute inset-0 flex min-h-0 flex-col bg-background">
+          <div class="flex items-center gap-2 border-b px-2 py-1.5">
+            <Button variant="ghost" size="sm" class="shrink-0 gap-1.5" onclick={backToList}>
+              <ArrowLeftIcon class="size-4" />
+              {Copy.Back}
+            </Button>
+            {#if detailTask}
+              <div
+                class="ml-auto flex min-w-0 items-center justify-end overflow-x-auto [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+              >
+                <TaskMeta task={detailTask} onPatch={(patch) => patchTask(detailTask.id, patch)} />
+              </div>
+            {/if}
+          </div>
+          <div class="min-h-0 flex-1">
+            <TaskDetail task={detailTask} {tasks} meta={false} onPatch={patchTask} onSelect={openTask} />
+          </div>
+        </div>
+      {/if}
     {/if}
   </div>
 {/if}
