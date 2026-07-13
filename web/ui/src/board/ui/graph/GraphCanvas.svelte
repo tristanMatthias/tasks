@@ -12,7 +12,7 @@
   import ExpandIcon from "@lucide/svelte/icons/maximize-2";
   import ShrinkIcon from "@lucide/svelte/icons/minimize-2";
   import { shortId, Status, type Task } from "$tasks/model/issue.js";
-  import { ALL_STATUSES, ALL_TYPES, type TaskFilter } from "$tasks/model/filter.js";
+  import type { TaskFilter } from "$tasks/model/filter.js";
   import StatusDot from "$tasks/ui/StatusDot.svelte";
   import TypeBadge from "$tasks/ui/TypeBadge.svelte";
   import type { Graph } from "$board/model/graph.js";
@@ -43,29 +43,16 @@
 
   const layout = $derived(layoutGraph(graph));
 
-  // The board filter applies to the graph: status/type facets DIM non-matching
-  // nodes (dropping them would fragment the chains), and a search query
-  // HIGHLIGHTS matches. The focus is never dimmed.
-  const facetActive = $derived(
-    filter.statuses.length < ALL_STATUSES.length || filter.types.length < ALL_TYPES.length,
-  );
+  // Facet filtering HIDES nodes upstream in the builder, so here the filter is
+  // only the search query, which HIGHLIGHTS matches.
   const query = $derived(filter.query.trim().toLowerCase());
-  const dimmed = (id: string, t: Task | undefined): boolean =>
-    facetActive &&
-    id !== focusId &&
-    !!t &&
-    !(filter.statuses.includes(t.status) && filter.types.includes(t.issue_type));
   const isHit = (id: string, t: Task | undefined): boolean =>
     query.length > 0 && `${id} ${t?.title ?? ""}`.toLowerCase().includes(query);
 
-  // Emphasis by direction so the line up to the focus is easy to thread:
-  // focus + everything UPSTREAM stays full; DOWNSTREAM (what the focus blocks /
-  // contains) is dimmed; anything filtered out by the facets is dimmer still.
-  const nodeOpacity = (rank: number, id: string, t: Task | undefined): number => {
-    if (dimmed(id, t)) return 0.3;
-    if (rank > 0) return 0.6;
-    return 1;
-  };
+  // Emphasis by direction so the line up to the focus is easy to thread: the
+  // focus + everything UPSTREAM stays full; DOWNSTREAM (what it blocks/contains)
+  // is dimmed.
+  const nodeOpacity = (rank: number): number => (rank > 0 ? 0.6 : 1);
 
   let viewport = $state<HTMLDivElement | null>(null);
   let tx = $state(0);
@@ -281,7 +268,7 @@
           class:ring-2={n.id === focusId}
           class:ring-primary={n.id === focusId}
           class:border-primary={n.id === selectedId && n.id !== focusId}
-          style="left:{n.x}px; top:{n.y}px; width:{NODE_W}px; height:{NODE_H}px; opacity:{nodeOpacity(n.rank, n.id, t)}"
+          style="left:{n.x}px; top:{n.y}px; width:{NODE_W}px; height:{NODE_H}px; opacity:{nodeOpacity(n.rank)}"
           ondblclick={() => onFocus(n.id)}
           role="button"
           tabindex="-1"

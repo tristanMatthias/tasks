@@ -37,7 +37,12 @@
   });
   const byId = $derived(new Map(tasks.map((t) => [t.id, t] as const)));
   const focusTask = $derived(focusId ? byId.get(focusId) : undefined);
-  const graph = $derived(focusTask && focusId ? kind.build(tasks, focusId) : null);
+  // Status/type facets HIDE non-matching nodes (and, via the builder's wall,
+  // everything reachable only through them). Search stays a highlight.
+  const visible = $derived(
+    (t: Task) => filter.statuses.includes(t.status) && filter.types.includes(t.issue_type),
+  );
+  const graph = $derived(focusTask && focusId ? kind.build(tasks, focusId, visible) : null);
 </script>
 
 <div class={isFull ? "fixed inset-0 z-50 flex flex-col bg-background" : "flex h-full min-h-0 flex-col bg-background"}>

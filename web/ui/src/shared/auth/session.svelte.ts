@@ -4,10 +4,18 @@
  */
 import { fetchAuthInfo, logout as apiLogout, type AuthInfo, type AuthMode } from "./auth.js";
 
+interface ClerkLike {
+  user?: unknown;
+  session?: { getToken?: (opts?: { skipCache?: boolean }) => Promise<unknown> } | null;
+  addListener?: (cb: (e: { user?: unknown }) => void) => void;
+}
+const clerk = (): ClerkLike | undefined => (window as { Clerk?: ClerkLike }).Clerk;
+
 class Session {
   #info = $state<AuthInfo | null>(null);
   #loading = $state(true);
   #clerkUser = $state(false);
+  #watching = false;
 
   async load(): Promise<void> {
     this.#loading = true;
@@ -23,17 +31,51 @@ class Session {
         /* proceed with whatever cookie exists */
       }
     }
-    // Trust the client: if ClerkJS restored a signed-in user, we're logged in
-    // even if the server's short-lived __session cookie is momentarily stale on
-    // a hard refresh (which otherwise flashed the landing page and forced a
-    // pointless trip through /sign-in).
-    try {
-      this.#clerkUser = !!(window as { Clerk?: { user?: unknown } }).Clerk?.user;
-    } catch {
-      this.#clerkUser = false;
-    }
+    await this.#syncClerk();
     this.#info = await fetchAuthInfo();
     this.#loading = false;
+    // Keep reconciling: ClerkJS can populate the signed-in user slightly AFTER
+    // load()/__authReady resolves (the client GET lands late), and the session
+    // can change under us (switch workspace, sign out in another tab). Without
+    // this, a hard refresh could leave a signed-in user stuck on the public
+    // landing page until they manually click Log in.
+    this.#watchClerk();
+  }
+
+  /**
+   * Reconcile with ClerkJS: record whether a signed-in user is present, and —
+   * because the server's short-lived __session cookie can be momentarily stale
+   * on a hard refresh — force-refresh it when Clerk has a live session so the
+   * next /api/authinfo agrees.
+   */
+  async #syncClerk(): Promise<void> {
+    const c = clerk();
+    this.#clerkUser = !!c?.user;
+    if (c?.session?.getToken) {
+      try {
+        await c.session.getToken({ skipCache: true });
+      } catch {
+        /* keep whatever cookie exists */
+      }
+    }
+  }
+
+  #watchClerk(): void {
+    if (this.#watching) return;
+    const c = clerk();
+    if (!c?.addListener) return;
+    this.#watching = true;
+    c.addListener((e) => {
+      const has = !!e?.user;
+      if (has === this.#clerkUser) return; // nothing that affects our gate changed
+      // Flip the client-trusted view immediately so the gate swaps landing↔app
+      // without a round trip, then re-verify (and refresh the cookie) so API
+      // calls made after this point carry a valid session.
+      this.#clerkUser = has;
+      void this.#syncClerk().then(async () => {
+        this.#info = await fetchAuthInfo();
+      });
+    });
   }
 
   async logout(): Promise<void> {

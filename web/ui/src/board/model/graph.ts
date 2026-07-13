@@ -33,8 +33,11 @@ export interface GraphKind {
   key: string;
   label: string;
   hint: string;
-  build: (tasks: readonly Task[], focusId: string) => Graph;
+  build: (tasks: readonly Task[], focusId: string, visible?: (t: Task) => boolean) => Graph;
 }
+
+/** Everything shows unless a filter says otherwise. */
+const ALL_VISIBLE = () => true;
 
 interface Opts {
   blocks: boolean;
@@ -44,7 +47,12 @@ interface Opts {
   maxFanout?: number;
 }
 
-function buildDirected(tasks: readonly Task[], focusId: string, opts: Opts): Graph {
+function buildDirected(
+  tasks: readonly Task[],
+  focusId: string,
+  opts: Opts,
+  visible: (t: Task) => boolean = ALL_VISIBLE,
+): Graph {
   const byId = new Map(tasks.map((t) => [t.id, t] as const));
   const h = buildHierarchy(tasks);
   const maxDepth = opts.maxDepth ?? 4;
@@ -84,6 +92,10 @@ function buildDirected(tasks: readonly Task[], focusId: string, opts: Opts): Gra
         }
         // Cap a single node's fan-out so one huge parent can't explode a column.
         for (const [nid, kind] of neighbors.slice(0, maxFanout)) {
+          // A filtered-out node is a WALL: skip it and don't traverse through it,
+          // so everything reachable only via it (its "children") drops out too.
+          const nt = byId.get(nid);
+          if (nt && !visible(nt)) continue;
           // Edge always points downstream so arrows read the same everywhere.
           if (dir === -1) addEdge(nid, id, kind);
           else addEdge(id, nid, kind);
@@ -109,19 +121,19 @@ export const GRAPH_KINDS: readonly GraphKind[] = [
     key: "stack",
     label: "All",
     hint: "Dependencies + hierarchy — what blocks it and what it blocks, plus the epic breakdown",
-    build: (tasks, focus) => buildDirected(tasks, focus, { blocks: true, parent: true }),
+    build: (tasks, focus, visible) => buildDirected(tasks, focus, { blocks: true, parent: true }, visible),
   },
   {
     key: "blocking",
     label: "Blocks",
     hint: "Just the dependency chain — what must finish first (left) and what this unblocks (right)",
-    build: (tasks, focus) => buildDirected(tasks, focus, { blocks: true, parent: false }),
+    build: (tasks, focus, visible) => buildDirected(tasks, focus, { blocks: true, parent: false }, visible),
   },
   {
     key: "subtree",
     label: "Hierarchy",
     hint: "Just the breakdown — the parent/epic (left) and its children (right)",
-    build: (tasks, focus) => buildDirected(tasks, focus, { blocks: false, parent: true }),
+    build: (tasks, focus, visible) => buildDirected(tasks, focus, { blocks: false, parent: true }, visible),
   },
 ];
 
