@@ -114,6 +114,12 @@ export class Board {
     return this;
   }
 
+  /** Assert the URL reflects viewing task `id` (its detail is open). */
+  async expectViewingTask(id: string): Promise<this> {
+    await this.page.waitForURL((u) => u.href.includes(`/tasks/${id}`));
+    return this;
+  }
+
   /** The detail pane's status trigger (first on the page = the meta bar). */
   private statusTrigger(): Locator {
     return this.page.getByTestId("status-trigger").first();
@@ -122,6 +128,43 @@ export class Board {
   async setStatus(status: string): Promise<this> {
     await this.statusTrigger().click();
     await this.page.getByTestId(`status-option-${status}`).click();
+    return this;
+  }
+
+  async setType(type: string): Promise<this> {
+    await this.page.getByTestId("type-trigger").first().click();
+    await this.page.getByTestId(`type-option-${type}`).click();
+    return this;
+  }
+
+  async setPriority(priority: number): Promise<this> {
+    await this.page.getByTestId("priority-trigger").first().click();
+    await this.page.getByTestId(`priority-option-${priority}`).click();
+    return this;
+  }
+
+  async expectDetailType(label: string): Promise<this> {
+    await expect(this.page.getByTestId("type-trigger").first()).toContainText(new RegExp(label, "i"));
+    return this;
+  }
+
+  /** From the detail pane, jump into the graph rooted on this task. */
+  async viewInGraph(): Promise<this> {
+    await this.page.getByTestId("view-in-graph").click();
+    return this;
+  }
+
+  /** Follow an in-detail task link (parent / blocking / child) by its title.
+   *  Uses the real <button> element (detail links), not the tree rows, which are
+   *  role="button" divs and would otherwise clash on the same title. */
+  async openDetailLink(title: string): Promise<this> {
+    await this.page.locator("button", { hasText: title }).first().click();
+    return this;
+  }
+
+  /** Assert a read-only detail section (Description, Notes, …) shows `text`. */
+  async expectSection(text: string): Promise<this> {
+    await expect(this.page.getByText(text, { exact: false }).first()).toBeVisible();
     return this;
   }
 
@@ -136,12 +179,49 @@ export class Board {
     return this;
   }
 
-  // -------------------------------------------------------------------- views
+  // ---------------------------------------------------------- views + filters
+  private async openFilterMenu(): Promise<void> {
+    // The detail pane can embed a child tree with its own filter menu, so target
+    // the main board's toolbar (first in the DOM).
+    await this.page.getByTestId("filter-menu-trigger").first().click();
+  }
+  private async closeMenu(): Promise<void> {
+    await this.page.keyboard.press("Escape");
+  }
+
   /** Switch the board view via the real filter-menu view switcher. */
   async view(name: "tree" | "graph" | "dashboard"): Promise<this> {
-    await this.page.getByTestId("filter-menu-trigger").click();
+    await this.openFilterMenu();
     await this.page.getByTestId(`view-${name}`).click();
-    await this.page.keyboard.press("Escape"); // close the menu
+    await this.closeMenu();
+    return this;
+  }
+
+  /** Toggle a status facet on/off (hides/shows those rows). */
+  async toggleStatusFilter(status: string): Promise<this> {
+    await this.openFilterMenu();
+    await this.page.getByTestId(`filter-status-${status}`).click();
+    await this.closeMenu();
+    await this.page.waitForTimeout(150);
+    return this;
+  }
+
+  /** Toggle a type facet on/off. */
+  async toggleTypeFilter(type: string): Promise<this> {
+    await this.openFilterMenu();
+    await this.page.getByTestId(`filter-type-${type}`).click();
+    await this.closeMenu();
+    await this.page.waitForTimeout(150);
+    return this;
+  }
+
+  // --------------------------------------------------------------- tree bulk
+  async expandAll(): Promise<this> {
+    await this.page.getByTitle("Expand all").click();
+    return this;
+  }
+  async collapseAll(): Promise<this> {
+    await this.page.getByTitle("Collapse all").click();
     return this;
   }
 
@@ -168,6 +248,93 @@ export class Board {
   async graphFocusShortId(): Promise<string | null> {
     const el = this.page.locator(".font-mono").first();
     return (await el.count()) ? (await el.textContent())?.trim() ?? null : null;
+  }
+
+  async graphKind(key: "stack" | "blocking" | "subtree"): Promise<this> {
+    await this.page.getByTestId(`graph-kind-${key}`).click();
+    return this;
+  }
+
+  /** Tap a graph node → selects it (updates the detail pane). */
+  async clickNode(id: string): Promise<this> {
+    await this.graphNode(id).click();
+    return this;
+  }
+
+  /** Double-tap a graph node → re-roots the graph on it. */
+  async recenterOnNode(id: string): Promise<this> {
+    await this.graphNode(id).dblclick();
+    return this;
+  }
+
+  async centerHere(): Promise<this> {
+    await this.page.getByTestId("graph-center").click();
+    return this;
+  }
+
+  async openFullscreen(): Promise<this> {
+    await this.page.getByTestId("graph-fullscreen").click();
+    return this;
+  }
+
+  async closeFullscreen(): Promise<this> {
+    await this.page.getByLabel("Close full page").click();
+    return this;
+  }
+
+  /** In full page the graph header adds its own search (the board toolbar is
+   *  covered), so the last search box on the page is the full-page one. */
+  async expectFullscreen(): Promise<this> {
+    await expect(this.page.getByLabel("Close full page")).toBeVisible();
+    await expect(this.page.getByTestId("search").last()).toBeVisible();
+    return this;
+  }
+
+  // ---------------------------------------------------------------- dashboard
+  dashboardCard(epicId: string): Locator {
+    return this.page.locator(`[data-testid="dashboard-card"][data-epic-id="${epicId}"]`);
+  }
+  async dashboardCardCount(): Promise<number> {
+    return this.page.getByTestId("dashboard-card").count();
+  }
+  async clickDashboardCard(epicId: string): Promise<this> {
+    await this.dashboardCard(epicId).click();
+    return this;
+  }
+
+  // ----------------------------------------------------------------- settings
+  /** Open Settings via the account menu (real navigation). */
+  async openSettings(): Promise<this> {
+    await this.page.getByTestId("account-menu-trigger").click();
+    await this.page.getByRole("menuitem", { name: "Settings" }).click();
+    await this.page.waitForURL(/\/settings/);
+    return this;
+  }
+
+  async gotoSettings(section: "account" | "keys" | "connect"): Promise<this> {
+    await this.page.goto(`${this.server.baseURL}/settings/${section}`, { waitUntil: "networkidle" });
+    return this;
+  }
+
+  async toggleTheme(): Promise<this> {
+    await this.page.getByTestId("account-menu-trigger").click();
+    await this.page.getByRole("menuitem", { name: /theme/i }).click();
+    return this;
+  }
+
+  async currentTheme(): Promise<string | null> {
+    return this.page.evaluate(() => document.documentElement.classList.contains("dark") ? "dark" : "light");
+  }
+
+  async createApiKey(label: string): Promise<this> {
+    await this.page.locator("#key-label").fill(label);
+    await this.page.getByRole("button", { name: "Create", exact: true }).click();
+    return this;
+  }
+
+  async revokeFirstApiKey(): Promise<this> {
+    await this.page.getByTitle("Revoke").first().click();
+    return this;
   }
 
   // --------------------------------------------------------------------- misc

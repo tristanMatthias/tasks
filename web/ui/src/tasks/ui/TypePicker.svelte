@@ -32,6 +32,7 @@
     <button
       {...props}
       type="button"
+      data-testid="type-trigger"
       title={Copy.ChangeType}
       class="inline-flex items-center rounded-[3px] outline-none ring-ring ring-offset-2 ring-offset-background transition hover:opacity-80 focus-visible:ring-2"
     >
@@ -43,6 +44,7 @@
     {#each ALL_TYPES as option (option)}
       <button
         type="button"
+        data-testid="type-option-{option}"
         onclick={() => select(option)}
         class="flex items-center justify-between gap-3 rounded-md px-2 py-2 text-left text-base transition hover:bg-accent"
       >

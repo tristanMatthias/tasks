@@ -29,4 +29,17 @@ test.describe("tree", () => {
     await board.collapse(parent.id); // collapse must win, even during search
     await board.expectRowHidden(child.id);
   });
+
+  test("expand-all and collapse-all toggle the whole tree", async ({ board, server }) => {
+    const parent = await server.api.create({ title: "Bulk parent", issue_type: "epic" });
+    const child = await server.api.create({ title: "Bulk child", parent: parent.id });
+    await board.open();
+    await board.expectRowVisible(child.id); // expanded by default
+
+    await board.collapseAll();
+    await board.expectRowHidden(child.id);
+
+    await board.expandAll();
+    await board.expectRowVisible(child.id);
+  });
 });

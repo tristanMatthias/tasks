@@ -61,6 +61,8 @@
       {#each visible as s (s.epic.id)}
         <button
           type="button"
+          data-testid="dashboard-card"
+          data-epic-id={s.epic.id}
           onclick={() => onSelect(s.epic.id)}
           class="group flex w-full flex-col gap-2.5 rounded-lg border bg-card p-3.5 text-left transition-colors hover:bg-accent/40"
         >

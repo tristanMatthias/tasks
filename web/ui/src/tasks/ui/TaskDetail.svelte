@@ -66,6 +66,7 @@
             <Button
               variant="outline"
               size="sm"
+              data-testid="view-in-graph"
               class="shrink-0 gap-1.5"
               onclick={() => onViewGraph?.(task.id)}
               title="See this task in the context of its stack"

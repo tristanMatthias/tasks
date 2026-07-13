@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
-# Pre-commit hook: block the commit unless the coverage gate passes.
+# Pre-commit hook: block the commit unless (1) the coverage gate passes and
+# (2) the e2e gate passes — any UI change must ship an end-to-end test.
 # Enable once with:  git config core.hooksPath .githooks   (or `make hooks`)
 set -euo pipefail
 repo_root="$(git rev-parse --show-toplevel)"
-exec "$repo_root/scripts/check-coverage.sh"
+"$repo_root/scripts/check-coverage.sh"
+"$repo_root/scripts/check-e2e-gate.sh"

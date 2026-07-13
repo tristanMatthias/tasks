@@ -29,4 +29,32 @@ test.describe("graph", () => {
     await board.expectGraphNodeVisible(blocked.id);
     await board.expectGraphNodeVisible(blocker.id); // upstream blocker is in the stack
   });
+
+  test("kind selector, node click, re-root and full page", async ({ board, server }) => {
+    const epic = await server.api.create({ title: "Kind epic", issue_type: "epic" });
+    const child = await server.api.create({ title: "Kind child", parent: epic.id });
+    await board.open();
+    await board.openTask(epic.id);
+    await board.view("graph");
+    await board.expectGraphNodeVisible(epic.id);
+    await board.expectGraphNodeVisible(child.id);
+
+    // Hierarchy kind still shows the breakdown.
+    await board.graphKind("subtree");
+    await board.expectGraphNodeVisible(child.id);
+    await board.graphKind("stack");
+
+    // Tapping the child node selects it (detail follows).
+    await board.clickNode(child.id);
+    await board.expectViewingTask(child.id);
+
+    // Double-tap re-roots the graph on the child.
+    await board.recenterOnNode(child.id);
+    await board.expectGraphNodeVisible(child.id);
+
+    // Full page surfaces search + close; closing returns to the panel.
+    await board.openFullscreen();
+    await board.expectFullscreen();
+    await board.closeFullscreen();
+  });
 });

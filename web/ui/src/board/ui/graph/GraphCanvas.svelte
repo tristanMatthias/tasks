@@ -335,6 +335,7 @@
     <button class="grid size-7 place-items-center rounded text-muted-foreground hover:bg-accent hover:text-foreground" onclick={fit} aria-label="Fit to view"><FitIcon class="size-4" /></button>
     {#if onToggleFullscreen}
       <button
+        data-testid="graph-fullscreen"
         class="grid size-7 place-items-center rounded text-muted-foreground hover:bg-accent hover:text-foreground"
         onclick={onToggleFullscreen}
         aria-label={isFullscreen ? "Exit full page" : "Full page"}

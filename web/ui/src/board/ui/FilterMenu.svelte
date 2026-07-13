@@ -66,7 +66,7 @@
       <legend class="text-xs font-medium text-muted-foreground">{Copy.FilterStatus}</legend>
       <div class="mt-2 flex flex-col gap-2">
         {#each ALL_STATUSES as status (status)}
-          <label class="flex cursor-pointer items-center gap-2 text-sm">
+          <label data-testid="filter-status-{status}" class="flex cursor-pointer items-center gap-2 text-sm">
             <Checkbox checked={filter.statuses.includes(status)} onCheckedChange={() => toggleStatus(status)} />
             <StatusDot {status} />
             {STATUS_LABEL[status]}
@@ -79,7 +79,7 @@
       <legend class="text-xs font-medium text-muted-foreground">{Copy.FilterType}</legend>
       <div class="mt-2 flex flex-col gap-2">
         {#each ALL_TYPES as type (type)}
-          <label class="flex cursor-pointer items-center gap-2 text-sm">
+          <label data-testid="filter-type-{type}" class="flex cursor-pointer items-center gap-2 text-sm">
             <Checkbox checked={filter.types.includes(type)} onCheckedChange={() => toggleType(type)} />
             <TypeBadge {type} />
           </label>

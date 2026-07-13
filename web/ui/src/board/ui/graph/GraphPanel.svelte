@@ -55,6 +55,7 @@
       {#each GRAPH_KINDS as k (k.key)}
         <button
           type="button"
+          data-testid="graph-kind-{k.key}"
           title={k.hint}
           onclick={() => (kindKey = k.key)}
           class="rounded px-2.5 py-1 text-xs font-medium transition-colors {kindKey === k.key
@@ -80,6 +81,7 @@
       <!-- Re-root the graph on the node you're viewing (double-click a node works too). -->
       <button
         type="button"
+        data-testid="graph-center"
         onclick={() => onFocus(selectedId)}
         title="Center the graph on the selected task"
         class="ml-auto flex shrink-0 items-center gap-1.5 rounded-md border px-2 py-1 text-xs font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
