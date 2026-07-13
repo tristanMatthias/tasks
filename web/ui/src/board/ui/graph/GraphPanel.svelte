@@ -4,6 +4,7 @@
 -->
 <script lang="ts">
   import CrosshairIcon from "@lucide/svelte/icons/crosshair";
+  import XIcon from "@lucide/svelte/icons/x";
   import { shortId, type Task } from "$tasks/model/issue.js";
   import type { TaskFilter } from "$tasks/model/filter.js";
   import { GRAPH_KINDS, graphKind } from "$board/model/graph.js";
@@ -84,6 +85,18 @@
         class="ml-auto flex shrink-0 items-center gap-1.5 rounded-md border px-2 py-1 text-xs font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
       >
         <CrosshairIcon class="size-3.5" /> Center here
+      </button>
+    {/if}
+    {#if isFull}
+      <!-- Explicit exit from full-page (Esc and the corner shrink button also work). -->
+      <button
+        type="button"
+        onclick={toggleFull}
+        title="Close full page (Esc)"
+        aria-label="Close full page"
+        class="grid size-7 shrink-0 place-items-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+      >
+        <XIcon class="size-4" />
       </button>
     {/if}
   </div>
