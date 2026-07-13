@@ -95,6 +95,13 @@
     untrack(() => fit());
   });
 
+  // Re-fit after entering/leaving full-page, once the viewport has resized.
+  $effect(() => {
+    void isFullscreen;
+    const id = requestAnimationFrame(() => untrack(() => fit()));
+    return () => cancelAnimationFrame(id);
+  });
+
   function zoomAt(cx: number, cy: number, factor: number): void {
     const s2 = clamp(scale * factor);
     if (s2 === scale) return;
