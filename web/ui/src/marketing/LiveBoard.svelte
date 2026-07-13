@@ -6,7 +6,7 @@
 -->
 <script lang="ts">
   import { onMount } from "svelte";
-  import { fly, fade } from "svelte/transition";
+  import { fade } from "svelte/transition";
   import { Status, IssueType } from "$tasks/model/issue.js";
   import StatusDot from "$tasks/ui/StatusDot.svelte";
   import TypeBadge from "$tasks/ui/TypeBadge.svelte";
@@ -35,35 +35,42 @@
   ];
 
   let counter = 0;
+  let agentIdx = 0;
   const shortId = () => Math.random().toString(36).slice(2, 6);
-  function make(): Row {
+
+  // Recycle a row IN PLACE into a fresh ready task. Keeping the list a fixed
+  // length (never splicing/pushing) means its height never changes — so the
+  // page below it doesn't jump as tasks flow through.
+  function recycle(row: Row): void {
     const [title, type, priority] = SEEDS[counter % SEEDS.length];
     counter++;
-    return { key: counter, id: shortId(), title, type, priority, status: Status.Open };
+    row.id = shortId();
+    row.title = title;
+    row.type = type;
+    row.priority = priority;
+    row.status = Status.Open;
+    row.agent = undefined;
   }
 
-  let rows = $state<Row[]>(Array.from({ length: 5 }, make));
-  let agentIdx = 0;
+  let rows = $state<Row[]>(
+    Array.from({ length: 5 }, (_, i) => {
+      const [title, type, priority] = SEEDS[i % SEEDS.length];
+      return { key: i, id: shortId(), title, type, priority, status: Status.Open };
+    }),
+  );
 
   function tick(): void {
-    // Close the oldest in-progress task, freeing a slot.
-    const done = rows.find((r) => r.status === Status.InProgress);
-    if (done) done.status = Status.Closed;
-
-    // An agent claims the topmost ready task.
+    // Snapshot the pipeline BEFORE mutating so each row advances one stage.
+    const closed = rows.find((r) => r.status === Status.Closed);
+    const inProgress = rows.find((r) => r.status === Status.InProgress);
     const ready = rows.find((r) => r.status === Status.Open);
-    if (ready) {
-      ready.status = Status.InProgress;
+
+    if (closed) recycle(closed); // a finished task frees up as fresh ready work
+    if (inProgress) inProgress.status = Status.Closed; // finish the in-flight one
+    if (ready && ready !== closed) {
+      ready.status = Status.InProgress; // an agent claims the next ready task
       ready.agent = AGENTS[agentIdx++ % AGENTS.length];
     }
-
-    // Retire a closed task off the top and slide a fresh ready one in.
-    const closedIdx = rows.findIndex((r) => r.status === Status.Closed);
-    if (closedIdx !== -1 && rows.length >= 5) {
-      rows.splice(closedIdx, 1);
-      rows.push(make());
-    }
-    rows = rows;
   }
 
   onMount(() => {
@@ -86,25 +93,26 @@
 
   <div class="divide-y">
     {#each rows as row (row.key)}
-      <div
-        class="flex items-center gap-2.5 px-3 py-2.5"
-        in:fly={{ y: 12, duration: 350 }}
-        out:fade={{ duration: 200 }}
-      >
+      <div class="flex h-[42px] items-center gap-2.5 px-3">
         <StatusDot status={row.status} size="md" />
         <TypeBadge type={row.type} />
         <PriorityTag priority={row.priority} />
         <code class="shrink-0 font-mono text-[11px] text-muted-foreground">{row.id}</code>
-        <span
-          class="min-w-0 flex-1 truncate text-sm transition-opacity"
-          class:line-through={row.status === Status.Closed}
-          class:opacity-40={row.status === Status.Closed}
-        >
-          {row.title}
-        </span>
+        <!-- keyed on id so a recycled task's title cross-fades instead of snapping -->
+        {#key row.id}
+          <span
+            in:fade={{ duration: 300 }}
+            class="min-w-0 flex-1 truncate text-sm transition-opacity duration-300"
+            class:line-through={row.status === Status.Closed}
+            class:opacity-40={row.status === Status.Closed}
+          >
+            {row.title}
+          </span>
+        {/key}
         {#if row.agent}
           <span
             in:fade={{ duration: 250 }}
+            out:fade={{ duration: 200 }}
             class="shrink-0 rounded-full border border-primary/30 bg-primary/10 px-2 py-0.5 font-mono text-[10px] text-primary"
           >
             {row.agent}
