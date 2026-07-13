@@ -19,16 +19,16 @@ export interface FlatRow {
 export function flattenVisible(
   hierarchy: Hierarchy,
   collapsedIds: ReadonlySet<string>,
-  revealMatches: boolean,
 ): FlatRow[] {
   const rows: FlatRow[] = [];
 
   const walk = (id: string, depth: number): void => {
     const children = hierarchy.children.get(id) ?? [];
     const hasChildren = children.length > 0;
-    // A search reveals every match (force subtrees open); otherwise honor the
-    // user's collapse state.
-    const open = hasChildren && (revealMatches || !collapsedIds.has(id));
+    // Always honor the user's collapse state — even while searching. (Filtering
+    // hoists matches up out of non-matching parents, so results stay visible
+    // without force-opening subtrees the user has deliberately collapsed.)
+    const open = hasChildren && !collapsedIds.has(id);
 
     rows.push({ id, depth, hasChildren, childCount: children.length, open });
     if (open) {

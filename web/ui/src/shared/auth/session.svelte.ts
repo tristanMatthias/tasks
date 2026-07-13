@@ -11,6 +11,24 @@ interface ClerkLike {
 }
 const clerk = (): ClerkLike | undefined => (window as { Clerk?: ClerkLike }).Clerk;
 
+/**
+ * Clerk drops a non-HttpOnly `__client_uat` cookie on the app domain — the unix
+ * seconds of the last sign-in, `0` when signed out. It's Clerk's own signal for
+ * "this browser has an active session", readable before (and independently of)
+ * ClerkJS finishing its load. We trust it to decide app-vs-landing so a hard
+ * refresh never strands a signed-in user on the public page while ClerkJS is
+ * still rehydrating `Clerk.user`. (Newer Clerk may suffix the name, e.g.
+ * `__client_uat_<hash>`, so match either.)
+ */
+function clerkSessionCookie(): boolean {
+  try {
+    const m = document.cookie.match(/(?:^|;\s*)__client_uat(?:_[^=]*)?=(\d+)/);
+    return !!m && Number(m[1]) > 0;
+  } catch {
+    return false;
+  }
+}
+
 class Session {
   #info = $state<AuthInfo | null>(null);
   #loading = $state(true);
@@ -91,8 +109,11 @@ class Session {
   }
   get authenticated(): boolean {
     if (this.#info?.authenticated) return true;
-    // Client-trusted fallback for the stale-cookie-on-refresh case (custom mode).
-    return this.mode === "custom" && this.#clerkUser;
+    // Client-trusted fallback for the stale-cookie-on-refresh case (custom mode):
+    // ClerkJS reports a user, OR Clerk's __client_uat cookie says this browser
+    // has a live session (which survives even before Clerk.user rehydrates). If
+    // the session is actually dead, API calls 401 and ClerkJS clears the cookie.
+    return this.mode === "custom" && (this.#clerkUser || clerkSessionCookie());
   }
   get loginUrl(): string | undefined {
     return this.#info?.login_url;

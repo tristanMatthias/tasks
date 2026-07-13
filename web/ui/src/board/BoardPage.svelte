@@ -126,6 +126,13 @@
     view.current = BoardView.Graph;
     if (selectedId !== id) openTask(id);
   };
+  // Selecting from the tree/dashboard re-roots the graph on that task too, so it's
+  // already centered when you switch over. (Graph node clicks stay pinned — they
+  // use openTask directly — so exploring the graph doesn't yank it around.)
+  const selectFromList = (id: string) => {
+    graphFocusId = id;
+    openTask(id);
+  };
 </script>
 
 {#snippet mainPanel()}
@@ -136,6 +143,7 @@
     {sort}
     {selectedId}
     onSelect={openTask}
+    onListSelect={selectFromList}
     onPatch={patchTask}
     {graphFocusId}
     onGraphFocus={refocus}

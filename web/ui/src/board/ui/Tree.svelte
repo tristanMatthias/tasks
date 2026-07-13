@@ -44,16 +44,12 @@
   const view = $derived(
     isFilterActive(filter) ? filterHierarchy(scoped, (task) => matchesFilter(task, filter)) : scoped,
   );
-  // A text search reveals every match (auto-expands); status/type facets are
-  // subtractive and honor the user's collapse state.
-  const revealMatches = $derived(filter.query.trim() !== "");
-
   // Collapsed subtrees, persisted across refreshes.
   const collapse = new CollapseState();
 
   // The tree, flattened to the ordered rows currently on screen. Cheap to
   // recompute; the DOM cost is bounded by the virtualizer, not by row count.
-  const rows = $derived(flattenVisible(view, collapse.ids, revealMatches));
+  const rows = $derived(flattenVisible(view, collapse.ids));
 
   let scrollEl = $state<HTMLDivElement | null>(null);
 

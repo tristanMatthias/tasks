@@ -23,6 +23,8 @@
     sort: PersistedState<TaskSort>;
     selectedId?: string | null;
     onSelect: (id: string) => void;
+    /** List views (tree/dashboard) select AND re-root the graph; falls back to onSelect. */
+    onListSelect?: (id: string) => void;
     onPatch: (id: string, patch: Partial<Task>) => void;
     /** Graph view: the task the graph is rooted on, and re-root handler. */
     graphFocusId?: string | null;
@@ -35,10 +37,12 @@
     sort,
     selectedId = null,
     onSelect,
+    onListSelect,
     onPatch,
     graphFocusId = null,
     onGraphFocus = () => {},
   }: Props = $props();
+  const listSelect = $derived(onListSelect ?? onSelect);
 
   let tree = $state<{ expandAll(): void; collapseAll(): void }>();
   const isTree = $derived(view.current === BoardView.Tree);
@@ -55,9 +59,9 @@
   />
   <div class="min-h-0 flex-1">
     {#if isTree}
-      <Tree bind:this={tree} {tasks} {filter} sort={sort.current} {selectedId} {onSelect} {onPatch} />
+      <Tree bind:this={tree} {tasks} {filter} sort={sort.current} {selectedId} onSelect={listSelect} {onPatch} />
     {:else if view.current === BoardView.Dashboard}
-      <DashboardView {tasks} query={filter.query} sort={sort.current} {onSelect} />
+      <DashboardView {tasks} query={filter.query} sort={sort.current} onSelect={listSelect} />
     {:else}
       <GraphPanel {tasks} {filter} focusId={graphFocusId} {selectedId} {onSelect} onFocus={onGraphFocus} />
     {/if}
