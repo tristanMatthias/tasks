@@ -38,27 +38,18 @@ class Session {
 
   async load(): Promise<void> {
     this.#loading = true;
-    // In custom (Clerk) mode the board injects window.__authReady, which
-    // resolves once ClerkJS has loaded and refreshed the session cookie. Wait
-    // for it so a signed-in user is recognized as authed (and not flashed the
-    // public landing page) on the first check.
-    const ready = (window as { __authReady?: Promise<unknown> }).__authReady;
-    if (ready) {
-      try {
-        await ready;
-      } catch {
-        /* proceed with whatever cookie exists */
-      }
-    }
-    await this.#syncClerk();
+    // Render FAST. We decide app-vs-landing on two cheap signals only — the
+    // server's /api/authinfo (a local call, no Clerk dependency) and Clerk's
+    // synchronous __client_uat cookie — and never block the first paint on
+    // ClerkJS finishing its (slow) session hydration. That was the refresh
+    // spinner. Any read made with a momentarily-stale cookie self-heals via the
+    // boot script's 401 retry, and #watchClerk reconciles once ClerkJS settles.
+    this.#clerkUser = !!clerk()?.user;
     this.#info = await fetchAuthInfo();
     this.#loading = false;
-    // Keep reconciling: ClerkJS can populate the signed-in user slightly AFTER
-    // load()/__authReady resolves (the client GET lands late), and the session
-    // can change under us (switch workspace, sign out in another tab). Without
-    // this, a hard refresh could leave a signed-in user stuck on the public
-    // landing page until they manually click Log in.
     this.#watchClerk();
+    // Best-effort cookie refresh in the BACKGROUND (does not gate rendering).
+    void this.#syncClerk();
   }
 
   /**
