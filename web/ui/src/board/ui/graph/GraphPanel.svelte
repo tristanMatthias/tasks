@@ -3,6 +3,7 @@
   registry) over the pan/zoom canvas, focused on a task and showing its stack.
 -->
 <script lang="ts">
+  import { onMount } from "svelte";
   import CrosshairIcon from "@lucide/svelte/icons/crosshair";
   import { shortId, type Task } from "$tasks/model/issue.js";
   import type { TaskFilter } from "$tasks/model/filter.js";
@@ -21,12 +22,26 @@
 
   let kindKey = $state("stack");
   const kind = $derived(graphKind(kindKey));
+
+  // Full-page: expand the whole panel (toolbar + canvas) to fill the screen.
+  let rootEl = $state<HTMLDivElement | null>(null);
+  let isFull = $state(false);
+  function toggleFull(): void {
+    if (!rootEl) return;
+    if (document.fullscreenElement) document.exitFullscreen();
+    else rootEl.requestFullscreen?.();
+  }
+  onMount(() => {
+    const onChange = () => (isFull = !!document.fullscreenElement);
+    document.addEventListener("fullscreenchange", onChange);
+    return () => document.removeEventListener("fullscreenchange", onChange);
+  });
   const byId = $derived(new Map(tasks.map((t) => [t.id, t] as const)));
   const focusTask = $derived(focusId ? byId.get(focusId) : undefined);
   const graph = $derived(focusTask && focusId ? kind.build(tasks, focusId) : null);
 </script>
 
-<div class="flex h-full min-h-0 flex-col">
+<div bind:this={rootEl} class="flex h-full min-h-0 flex-col bg-background">
   <div class="flex items-center gap-2 border-b px-2 py-1.5">
     <div class="flex shrink-0 rounded-md border bg-background p-0.5">
       {#each GRAPH_KINDS as k (k.key)}
@@ -66,7 +81,17 @@
 
   <div class="min-h-0 flex-1">
     {#if graph && focusId}
-      <GraphCanvas {graph} {byId} {filter} {focusId} {selectedId} {onSelect} {onFocus} />
+      <GraphCanvas
+        {graph}
+        {byId}
+        {filter}
+        {focusId}
+        {selectedId}
+        {onSelect}
+        {onFocus}
+        isFullscreen={isFull}
+        onToggleFullscreen={toggleFull}
+      />
     {:else}
       <div class="grid h-full place-items-center p-8 text-center text-sm text-muted-foreground">
         Select a task to see it in the context of its stack.

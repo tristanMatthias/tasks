@@ -8,8 +8,10 @@
   import { untrack } from "svelte";
   import ZoomInIcon from "@lucide/svelte/icons/plus";
   import ZoomOutIcon from "@lucide/svelte/icons/minus";
-  import FitIcon from "@lucide/svelte/icons/maximize";
-  import { shortId, type Task } from "$tasks/model/issue.js";
+  import FitIcon from "@lucide/svelte/icons/scan";
+  import ExpandIcon from "@lucide/svelte/icons/maximize-2";
+  import ShrinkIcon from "@lucide/svelte/icons/minimize-2";
+  import { shortId, Status, type Task } from "$tasks/model/issue.js";
   import { ALL_STATUSES, ALL_TYPES, type TaskFilter } from "$tasks/model/filter.js";
   import StatusDot from "$tasks/ui/StatusDot.svelte";
   import TypeBadge from "$tasks/ui/TypeBadge.svelte";
@@ -24,8 +26,20 @@
     selectedId?: string | null;
     onSelect: (id: string) => void;
     onFocus: (id: string) => void;
+    isFullscreen?: boolean;
+    onToggleFullscreen?: () => void;
   }
-  let { graph, byId, filter, focusId, selectedId = null, onSelect, onFocus }: Props = $props();
+  let {
+    graph,
+    byId,
+    filter,
+    focusId,
+    selectedId = null,
+    onSelect,
+    onFocus,
+    isFullscreen = false,
+    onToggleFullscreen,
+  }: Props = $props();
 
   const layout = $derived(layoutGraph(graph));
 
@@ -97,6 +111,18 @@
   let moved = false;
   let pinchDist = 0;
 
+  // Apple-Maps one-finger zoom: double-tap, then (without lifting on the 2nd tap)
+  // drag vertically — up zooms in, down zooms out, about the tap point.
+  let lastUpTime = 0;
+  let lastUpX = 0;
+  let lastUpY = 0;
+  let zoomArmed = false; // 2nd tap is down; a vertical drag becomes a zoom
+  let zoomActive = false;
+  let zStartY = 0;
+  let zStartScale = 1;
+  let zAnchorX = 0;
+  let zAnchorY = 0;
+
   function localXY(e: PointerEvent): { x: number; y: number } {
     const r = viewport!.getBoundingClientRect();
     return { x: e.clientX - r.left, y: e.clientY - r.top };
@@ -115,7 +141,18 @@
       downY = y;
       downNode = nodeOf(e.target);
       moved = false;
+      // A second tap landing quickly near the first arms the zoom-drag.
+      const now = performance.now();
+      zoomArmed = now - lastUpTime < 300 && Math.hypot(x - lastUpX, y - lastUpY) < 32;
+      zoomActive = false;
+      if (zoomArmed) {
+        zStartY = y;
+        zStartScale = scale;
+        zAnchorX = x;
+        zAnchorY = y;
+      }
     } else if (pointers.size === 2) {
+      zoomArmed = false;
       const [a, b] = [...pointers.values()];
       pinchDist = Math.hypot(a.x - b.x, a.y - b.y);
     }
@@ -140,6 +177,18 @@
       moved = true;
       return;
     }
+    // double-tap-drag zoom (one finger)
+    if (zoomArmed) {
+      if (!zoomActive && Math.abs(y - zStartY) > 4) zoomActive = true;
+      if (zoomActive) {
+        const target = clamp(zStartScale * Math.pow(2, (zStartY - y) / 180));
+        zoomAt(zAnchorX, zAnchorY, target / scale);
+        moved = true;
+      }
+      p.x = x;
+      p.y = y;
+      return;
+    }
     // single-pointer pan
     tx += x - p.x;
     ty += y - p.y;
@@ -149,10 +198,17 @@
   }
 
   function onPointerUp(e: PointerEvent): void {
-    const wasTap = !moved && pointers.size === 1;
+    const wasTap = !moved && pointers.size === 1 && !zoomActive;
     pointers.delete(e.pointerId);
     if (pointers.size < 2) pinchDist = 0;
-    if (wasTap && downNode) onSelect(downNode);
+    zoomArmed = false;
+    zoomActive = false;
+    if (wasTap) {
+      lastUpTime = performance.now();
+      lastUpX = downX;
+      lastUpY = downY;
+      if (downNode) onSelect(downNode);
+    }
   }
 
   function onWheel(e: WheelEvent): void {
@@ -179,8 +235,10 @@
       <!-- edges -->
       <svg width={layout.width} height={layout.height} class="pointer-events-none absolute left-0 top-0 overflow-visible">
         <defs>
-          <marker id="gh-arrow" viewBox="0 0 8 8" refX="6.5" refY="4" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
-            <path d="M1,1 L6.5,4 L1,7" fill="none" stroke="var(--muted-foreground)" stroke-width="1.4" />
+          <!-- context-stroke → the arrow inherits its line's colour; orient=auto
+               rotates it to the direction the line arrives from. -->
+          <marker id="gh-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+            <path d="M0.5,0.5 L9,5 L0.5,9.5 Z" fill="context-stroke" />
           </marker>
         </defs>
         {#each layout.edges as e (e.from + e.to)}
@@ -191,7 +249,7 @@
             stroke-width="1.5"
             stroke-dasharray={e.kind === "parent" ? "5 5" : "0"}
             marker-end="url(#gh-arrow)"
-            opacity="0.75"
+            opacity="0.8"
           />
         {/each}
       </svg>
@@ -201,10 +259,11 @@
         {@const t = byId.get(n.id)}
         <div
           data-node={n.id}
-          class="absolute cursor-pointer rounded-lg border bg-card px-2.5 py-1.5 shadow-sm transition-all hover:border-primary/50"
-          class:ring-2={n.id === focusId || isHit(n.id, t)}
+          class={`absolute cursor-pointer rounded-lg border bg-card px-2.5 py-1.5 shadow-sm transition-all hover:border-primary/50 ${
+            n.id !== focusId && isHit(n.id, t) ? "ring-4 ring-[#e0af68]/50" : ""
+          }`}
+          class:ring-2={n.id === focusId}
           class:ring-primary={n.id === focusId}
-          class:ring-[#e0af68]={n.id !== focusId && isHit(n.id, t)}
           class:border-primary={n.id === selectedId && n.id !== focusId}
           class:opacity-35={dimmed(n.id, t)}
           style="left:{n.x}px; top:{n.y}px; width:{NODE_W}px; height:{NODE_H}px"
@@ -212,12 +271,18 @@
           role="button"
           tabindex="-1"
         >
-          <div class="flex items-center gap-1.5">
+          <div class="flex items-center gap-1.5" class:opacity-55={t?.status === Status.Closed}>
             {#if t}<StatusDot status={t.status} size="sm" />{/if}
             {#if t}<TypeBadge type={t.issue_type} />{/if}
             <code class="ml-auto shrink-0 font-mono text-[10px] text-muted-foreground">{shortId(n.id)}</code>
           </div>
-          <div class="mt-0.5 truncate text-[12px] leading-tight">{t?.title ?? n.id}</div>
+          <div
+            class="mt-0.5 truncate text-[12px] leading-tight"
+            class:line-through={t?.status === Status.Closed}
+            class:text-muted-foreground={t?.status === Status.Closed}
+          >
+            {t?.title ?? n.id}
+          </div>
         </div>
       {/each}
     </div>
@@ -228,6 +293,15 @@
     <button class="grid size-7 place-items-center rounded text-muted-foreground hover:bg-accent hover:text-foreground" onclick={() => zoomButton(1.2)} aria-label="Zoom in"><ZoomInIcon class="size-4" /></button>
     <button class="grid size-7 place-items-center rounded text-muted-foreground hover:bg-accent hover:text-foreground" onclick={() => zoomButton(1 / 1.2)} aria-label="Zoom out"><ZoomOutIcon class="size-4" /></button>
     <button class="grid size-7 place-items-center rounded text-muted-foreground hover:bg-accent hover:text-foreground" onclick={fit} aria-label="Fit to view"><FitIcon class="size-4" /></button>
+    {#if onToggleFullscreen}
+      <button
+        class="grid size-7 place-items-center rounded text-muted-foreground hover:bg-accent hover:text-foreground"
+        onclick={onToggleFullscreen}
+        aria-label={isFullscreen ? "Exit full page" : "Full page"}
+      >
+        {#if isFullscreen}<ShrinkIcon class="size-4" />{:else}<ExpandIcon class="size-4" />{/if}
+      </button>
+    {/if}
   </div>
 </div>
 

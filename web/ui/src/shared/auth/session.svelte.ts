@@ -7,6 +7,7 @@ import { fetchAuthInfo, logout as apiLogout, type AuthInfo, type AuthMode } from
 class Session {
   #info = $state<AuthInfo | null>(null);
   #loading = $state(true);
+  #clerkUser = $state(false);
 
   async load(): Promise<void> {
     this.#loading = true;
@@ -21,6 +22,15 @@ class Session {
       } catch {
         /* proceed with whatever cookie exists */
       }
+    }
+    // Trust the client: if ClerkJS restored a signed-in user, we're logged in
+    // even if the server's short-lived __session cookie is momentarily stale on
+    // a hard refresh (which otherwise flashed the landing page and forced a
+    // pointless trip through /sign-in).
+    try {
+      this.#clerkUser = !!(window as { Clerk?: { user?: unknown } }).Clerk?.user;
+    } catch {
+      this.#clerkUser = false;
     }
     this.#info = await fetchAuthInfo();
     this.#loading = false;
@@ -38,7 +48,9 @@ class Session {
     return this.#info?.mode ?? "none";
   }
   get authenticated(): boolean {
-    return this.#info?.authenticated ?? false;
+    if (this.#info?.authenticated) return true;
+    // Client-trusted fallback for the stale-cookie-on-refresh case (custom mode).
+    return this.mode === "custom" && this.#clerkUser;
   }
   get loginUrl(): string | undefined {
     return this.#info?.login_url;
