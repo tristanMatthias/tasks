@@ -164,10 +164,14 @@ func TestRegistryLookup(t *testing.T) {
 	if r.Lookup("bogus") != nil {
 		t.Error("bogus should be nil")
 	}
-	// Every op must have parseable fields, a schema, and a handler.
+	// Every op must have parseable fields, a schema, and a handler — except
+	// Local ops (e.g. verify), which run in the CLI and have no server handler.
 	for _, op := range r {
-		if op.Handle == nil {
+		if op.Handle == nil && !op.Local {
 			t.Errorf("%s missing handler", op.Name)
+		}
+		if op.Local && op.OnHTTP() {
+			t.Errorf("%s is Local but still marked for HTTP", op.Name)
 		}
 		if len(op.Fields()) == 0 && op.Name != "" {
 			// ready/list have fields; ok if some don't, but schema must build

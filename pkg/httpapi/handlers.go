@@ -6,6 +6,7 @@ import (
 	"net/http"
 
 	"github.com/tristanMatthias/tasks/pkg/api"
+	"github.com/tristanMatthias/tasks/pkg/core"
 	"github.com/tristanMatthias/tasks/pkg/importer"
 	"github.com/tristanMatthias/tasks/pkg/model"
 	"github.com/tristanMatthias/tasks/pkg/store"
@@ -191,6 +192,13 @@ func writeErr(w http.ResponseWriter, status int, err error) {
 func writeCoreErr(w http.ResponseWriter, err error) {
 	if errors.Is(err, store.ErrNotFound) {
 		writeErr(w, http.StatusNotFound, err)
+		return
+	}
+	// A close blocked by unverified acceptance gates is a state conflict (409),
+	// not a bad request. The error message carries the LLM-friendly guidance.
+	var gpe *core.GatesPendingError
+	if errors.As(err, &gpe) {
+		writeErr(w, http.StatusConflict, err)
 		return
 	}
 	writeErr(w, http.StatusBadRequest, err)

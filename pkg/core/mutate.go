@@ -266,6 +266,15 @@ type CloseParams struct {
 // Close marks a task closed with closed_at=now and an optional reason.
 func (c *Core) Close(id string, p CloseParams) (*model.Task, error) {
 	id = c.resolveID(id)
+	// Acceptance gates block close: a task can't be closed while any command
+	// gate is still pending. The error names them + the CLI command to verify.
+	gates, err := c.st.ListGates(id)
+	if err != nil {
+		return nil, err
+	}
+	if pending := pendingGates(gates); len(pending) > 0 {
+		return nil, &GatesPendingError{TaskID: id, Gates: pending}
+	}
 	now := c.now()
 	set := map[string]any{"status": "closed", "closed_at": now}
 	if p.Reason != "" {

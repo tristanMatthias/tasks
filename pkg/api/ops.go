@@ -91,6 +91,27 @@ type CommentInput struct {
 	Text string `json:"text" in:"body" cli:"arg..." req:"true" desc:"Comment text"`
 }
 
+type GateAddInput struct {
+	ID          string `json:"id"          in:"path" cli:"arg"             req:"true" desc:"Task id"`
+	Command     string `json:"command"     in:"body" cli:"-c,--command"    req:"true" desc:"Shell command the CLI runs to verify this gate (exit 0 = pass)"`
+	Description string `json:"description" in:"body" cli:"-d,--description" desc:"What passing this gate proves (shown to the operator)"`
+	Type        string `json:"type"        in:"body" cli:"-t,--type"       desc:"Gate type (default: command)"`
+}
+
+type GateRemoveInput struct {
+	ID   string `json:"id"   in:"path" cli:"arg" req:"true" desc:"Task id"`
+	Gate string `json:"gate" in:"path" cli:"arg" req:"true" desc:"Gate id (e.g. g1)"`
+}
+
+// VerifyInput drives the CLI-only `verify` op. It has no server handler: the CLI
+// runs each gate's command locally, then posts results to the dedicated
+// begin/complete endpoints. See cmd/tasks.
+type VerifyInput struct {
+	ID   string `json:"id"   in:"path"  cli:"arg"        req:"true" desc:"Task id"`
+	Gate string `json:"gate" in:"query" cli:"arg"        desc:"Only verify this gate id (default: all pending)"`
+	Yes  bool   `json:"yes"  in:"query" cli:"-y,--yes"   desc:"Run gate commands without confirmation"`
+}
+
 type KeysListInput struct{}
 
 type KeysCreateInput struct {
@@ -189,8 +210,9 @@ func Ops() Registry {
 			},
 		},
 		{
-			Name: "close", Aliases: []string{"done"}, Summary: "Close a task with an optional reason.",
-			Method: "POST", Path: "/api/v1/tasks/{id}/close", Proto: &CloseInput{},
+			Name: "close", Aliases: []string{"done"},
+			Summary: "Close a task. Blocked while it has unverified acceptance gates — the CLI must verify them first (tasks verify <id>); the API/MCP cannot.",
+			Method:  "POST", Path: "/api/v1/tasks/{id}/close", Proto: &CloseInput{},
 			Handle: func(c *core.Core, in any) (any, error) {
 				p := in.(*CloseInput)
 				return c.Close(p.ID, core.CloseParams{Reason: p.Reason})
@@ -214,6 +236,34 @@ func Ops() Registry {
 				p := in.(*CommentInput)
 				return c.Comment(p.ID, p.Text, "")
 			},
+		},
+		{
+			Name: "gate add",
+			Summary: "Add an acceptance gate to a task: a command the CLI must run (exit 0) before the task can be closed.",
+			Method:  "POST", Path: "/api/v1/tasks/{id}/gates", Proto: &GateAddInput{},
+			Handle: func(c *core.Core, in any) (any, error) {
+				p := in.(*GateAddInput)
+				return c.AddGate(p.ID, core.GateSpec{Type: p.Type, Command: p.Command, Description: p.Description})
+			},
+		},
+		{
+			Name: "gate rm", Aliases: []string{"gate remove"},
+			Summary: "Remove an acceptance gate from a task.",
+			// HideMCP: the working agent must not drop its own gates via MCP tools
+			// to bypass verification. Still available on the CLI + HTTP.
+			HideMCP: true,
+			Method:  "DELETE", Path: "/api/v1/tasks/{id}/gates/{gate}", Proto: &GateRemoveInput{},
+			Handle: func(c *core.Core, in any) (any, error) {
+				p := in.(*GateRemoveInput)
+				return c.RemoveGate(p.ID, p.Gate)
+			},
+		},
+		{
+			Name: "verify",
+			Summary: "Verify a task's command gates by running them locally (CLI only). Runs each pending gate's command; on exit 0 it records the result so the task can be closed. The API/MCP cannot mark gates verified.",
+			// Local: no server route. The CLI executes commands on the host and
+			// calls the dedicated begin/complete endpoints. Never an MCP tool.
+			Local: true, Proto: &VerifyInput{},
 		},
 		{
 			Name: "keys list", Aliases: []string{"keys"}, Summary: "List API keys (for bots/agents) — active and revoked.",

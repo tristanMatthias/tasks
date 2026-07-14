@@ -24,8 +24,26 @@ type Op struct {
 	Proto   any      // pointer to a zero input struct, e.g. &CreateInput{}
 	Handle  func(c *core.Core, in any) (any, error)
 
+	// Surface controls — the default (both false) fans an op out to HTTP, MCP
+	// and CLI uniformly. These deliberately break that symmetry for the gate
+	// feature's trust boundary:
+	//   Local   — the op has NO server route; the CLI runs it in-process (e.g.
+	//             `verify`, which executes a command locally then calls the
+	//             dedicated begin/complete endpoints). Skipped by HTTP and MCP.
+	//   HideMCP — mounted on HTTP + CLI but NOT exposed as an MCP tool, so an
+	//             agent's tool surface can't reach it (e.g. `gate rm`, which the
+	//             working agent must not use to delete its own acceptance gates).
+	Local   bool
+	HideMCP bool
+
 	fields []field // parsed once via Fields()
 }
+
+// OnMCP reports whether this op should be exposed as an MCP tool.
+func (o *Op) OnMCP() bool { return !o.Local && !o.HideMCP }
+
+// OnHTTP reports whether this op should be mounted as an HTTP route.
+func (o *Op) OnHTTP() bool { return !o.Local }
 
 // Fields returns (memoized) the parsed field metadata for the op's input struct.
 func (o *Op) Fields() []field {

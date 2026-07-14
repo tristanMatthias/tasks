@@ -52,6 +52,9 @@ func newResolvedHandler(resolve func(*http.Request) (*core.Core, error)) http.Ha
 func NewServer(c *core.Core) *mcp.Server {
 	s := mcp.NewServer(&mcp.Implementation{Name: "tasks", Version: "1.0.0"}, nil)
 	for _, op := range api.Ops() {
+		if !op.OnMCP() { // verify (Local) + gate rm (HideMCP) are not agent tools
+			continue
+		}
 		s.AddTool(&mcp.Tool{
 			Name:        toolName(op.Name),
 			Description: op.Summary,

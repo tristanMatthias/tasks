@@ -109,6 +109,21 @@ func TestMCPToolsListed(t *testing.T) {
 			t.Errorf("tool %q not registered", name)
 		}
 	}
+	// gate add is a normal tool; verify (Local) + gate rm (HideMCP) must NOT be
+	// exposed — the API/MCP cannot verify a gate or delete one to bypass it.
+	tools := map[string]bool{}
+	for _, tool := range res.Tools {
+		tools[tool.Name] = true
+	}
+	if !tools["gate_add"] {
+		t.Error("gate_add should be an MCP tool")
+	}
+	if tools["verify"] {
+		t.Error("verify must NOT be an MCP tool")
+	}
+	if tools["gate_rm"] {
+		t.Error("gate_rm must NOT be an MCP tool")
+	}
 }
 
 func TestMCPWorkflow(t *testing.T) {

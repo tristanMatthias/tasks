@@ -184,6 +184,7 @@ func (s *Store) hydrate(tasks []*model.Task) error {
 	for _, t := range tasks {
 		t.Dependencies = nil
 		t.Comments = nil
+		t.Gates = nil
 		byID[t.ID] = t
 		ids = append(ids, t.ID)
 	}
@@ -220,6 +221,22 @@ func (s *Store) hydrate(tasks []*model.Task) error {
 		return err
 	}
 
+	// Gates where issue_id in set (ordered by id = creation order).
+	if err := s.eachIn(`SELECT `+gateCols+` FROM gates WHERE issue_id IN (`, ids, func(rows *sql.Rows) error {
+		for rows.Next() {
+			g, err := scanGate(rows)
+			if err != nil {
+				return err
+			}
+			if t := byID[g.IssueID]; t != nil {
+				t.Gates = append(t.Gates, g)
+			}
+		}
+		return rows.Err()
+	}, ` ORDER BY issue_id,id`); err != nil {
+		return err
+	}
+
 	// dependent_count: how many deps point AT each id.
 	depCounts := map[string]int{}
 	if err := s.eachIn(`SELECT depends_on_id,COUNT(*) FROM dependencies WHERE depends_on_id IN (`, ids, func(rows *sql.Rows) error {
@@ -240,6 +257,7 @@ func (s *Store) hydrate(tasks []*model.Task) error {
 		t.DependencyCount = len(t.Dependencies)
 		t.CommentCount = len(t.Comments)
 		t.DependentCount = depCounts[t.ID]
+		t.GateCount = len(t.Gates)
 	}
 	return nil
 }

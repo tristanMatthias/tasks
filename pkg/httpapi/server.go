@@ -213,8 +213,16 @@ func (s *Server) Handler() http.Handler {
 		app.HandleFunc("DELETE /api/v1/tasks/{id}", s.handleDelete)
 	}
 	for _, op := range api.Ops() {
+		if !op.OnHTTP() { // Local ops (e.g. verify) have no server route
+			continue
+		}
 		app.HandleFunc(op.Method+" "+op.Path, s.opHandler(op))
 	}
+	// Gate verification is a dedicated two-step handshake, deliberately NOT an op
+	// so it's never an MCP tool: begin issues one-time tokens; complete records a
+	// locally-run command's result. The CLI's `verify` drives both.
+	app.HandleFunc("POST /api/v1/tasks/{id}/gates/verify/begin", s.handleVerifyBegin)
+	app.HandleFunc("POST /api/v1/tasks/{id}/gates/{gate}/verify/complete", s.handleVerifyComplete)
 	if s.mcp != nil {
 		app.Handle("/mcp", s.mcp)
 		app.Handle("/mcp/", s.mcp)

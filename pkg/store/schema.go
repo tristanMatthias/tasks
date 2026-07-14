@@ -43,6 +43,23 @@ CREATE TABLE IF NOT EXISTS comments (
 	created_at TEXT NOT NULL DEFAULT ''
 );
 
+CREATE TABLE IF NOT EXISTS gates (
+	issue_id      TEXT NOT NULL,
+	id            TEXT NOT NULL,
+	type          TEXT NOT NULL DEFAULT 'command',
+	description   TEXT NOT NULL DEFAULT '',
+	command       TEXT NOT NULL DEFAULT '',
+	status        TEXT NOT NULL DEFAULT 'pending',
+	verified_at   TEXT NOT NULL DEFAULT '',
+	verified_by   TEXT NOT NULL DEFAULT '',
+	exit_code     INTEGER,
+	evidence      TEXT NOT NULL DEFAULT '',
+	created_at    TEXT NOT NULL DEFAULT '',
+	token         TEXT NOT NULL DEFAULT '',  -- one-time verify token (cleared on use)
+	token_expires TEXT NOT NULL DEFAULT '',  -- RFC3339 expiry of the pending token
+	PRIMARY KEY (issue_id, id)
+);
+
 CREATE TABLE IF NOT EXISTS meta (
 	k TEXT PRIMARY KEY,
 	v TEXT NOT NULL DEFAULT ''
@@ -61,6 +78,7 @@ CREATE TABLE IF NOT EXISTS api_keys (
 CREATE INDEX IF NOT EXISTS idx_deps_issue      ON dependencies(issue_id);
 CREATE INDEX IF NOT EXISTS idx_deps_dependson  ON dependencies(depends_on_id);
 CREATE INDEX IF NOT EXISTS idx_comments_issue  ON comments(issue_id);
+CREATE INDEX IF NOT EXISTS idx_gates_issue     ON gates(issue_id);
 CREATE INDEX IF NOT EXISTS idx_tasks_status    ON tasks(status);
 CREATE INDEX IF NOT EXISTS idx_tasks_type      ON tasks(issue_type);
 CREATE INDEX IF NOT EXISTS idx_api_keys_hash   ON api_keys(hash);

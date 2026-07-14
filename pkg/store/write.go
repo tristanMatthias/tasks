@@ -36,6 +36,14 @@ func (s *Store) Upsert(t *model.Task) error {
 			return err
 		}
 	}
+	if _, err := tx.Exec(`DELETE FROM gates WHERE issue_id=?`, t.ID); err != nil {
+		return err
+	}
+	for _, g := range t.Gates {
+		if err := insertGateTx(tx, g); err != nil {
+			return err
+		}
+	}
 	return tx.Commit()
 }
 
@@ -58,6 +66,11 @@ func (s *Store) Insert(t *model.Task) error {
 	}
 	for _, c := range t.Comments {
 		if err := insertCommentTx(tx, c); err != nil {
+			return err
+		}
+	}
+	for _, g := range t.Gates {
+		if err := insertGateTx(tx, g); err != nil {
 			return err
 		}
 	}
@@ -173,6 +186,9 @@ func (s *Store) Delete(id string) error {
 		return err
 	}
 	if _, err := tx.Exec(`DELETE FROM comments WHERE issue_id=?`, id); err != nil {
+		return err
+	}
+	if _, err := tx.Exec(`DELETE FROM gates WHERE issue_id=?`, id); err != nil {
 		return err
 	}
 	res, err := tx.Exec(`DELETE FROM tasks WHERE id=?`, id)

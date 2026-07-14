@@ -84,6 +84,11 @@ func run(op *api.Op, args []string) error {
 	if err := api.Validate(op.Fields(), in); err != nil {
 		return err
 	}
+	// Local ops (e.g. verify) run in-process — they execute commands on this
+	// machine instead of proxying to the server. This is the CLI-only path.
+	if op.Local {
+		return runLocal(op, in)
+	}
 	path, query, body := api.EncodeRequest(op.Fields(), in, op.Method, op.Path)
 
 	c := newClient()

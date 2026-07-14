@@ -43,6 +43,13 @@ func TestHandlerErrorBranches(t *testing.T) {
 	if code, _ := do(t, ts, "GET", "/api/v1/ready", "", ""); code != http.StatusBadRequest {
 		t.Fatalf("ready on closed store = %d, want 400", code)
 	}
+	// The dedicated verify routes surface store errors too.
+	if code, _ := do(t, ts, "POST", "/api/v1/tasks/proj-x/gates/verify/begin", "", `{}`); code != http.StatusBadRequest {
+		t.Fatalf("verify begin on closed store = %d, want 400", code)
+	}
+	if code, _ := do(t, ts, "POST", "/api/v1/tasks/proj-x/gates/g1/verify/complete", "", `{"exit_code":0}`); code != http.StatusBadRequest {
+		t.Fatalf("verify complete on closed store = %d, want 400", code)
+	}
 }
 
 func TestTouchAndMCPMount(t *testing.T) {
