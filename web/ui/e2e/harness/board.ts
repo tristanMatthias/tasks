@@ -26,15 +26,22 @@ export class Board {
   }
 
   // ---------------------------------------------------------------- lifecycle
-  /** Authenticate (token login sets the session cookie) and load `path`. */
+  /** Authenticate (establishes the session cookie for this server's auth mode)
+   *  and load `path`. Works for both token and custom-mode servers. */
   async open(path = "/"): Promise<this> {
-    await this.page.goto(`${this.server.baseURL}/auth?token=${this.server.token}`);
+    await this.page.goto(`${this.server.baseURL}${this.server.authPath}`);
     // Deterministic defaults so tests don't depend on prior persisted UI state.
     await this.page.evaluate(() => {
       localStorage.setItem("tasks:view", JSON.stringify("tree"));
       localStorage.setItem("mode-watcher-mode", "dark");
     });
     await this.page.goto(`${this.server.baseURL}${path}`, { waitUntil: "networkidle" });
+    return this;
+  }
+
+  /** Set a cookie in the page (e.g. to plant a stale client-trust signal). */
+  async setCookie(name: string, value: string): Promise<this> {
+    await this.page.evaluate(([n, v]) => (document.cookie = `${n}=${v}; path=/`), [name, value]);
     return this;
   }
 

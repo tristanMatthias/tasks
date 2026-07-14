@@ -7,7 +7,7 @@
 import { execFileSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
-import { TASKSD_BIN } from "./server";
+import { TASKSD_BIN, TESTSERVER_BIN } from "./server";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const uiDir = join(here, "..", ".."); // web/ui
@@ -17,4 +17,10 @@ export default function globalSetup(): void {
   if (process.env.E2E_SKIP_BUILD === "1") return;
   execFileSync("npm", ["run", "build"], { cwd: uiDir, stdio: "inherit" });
   execFileSync("go", ["build", "-o", TASKSD_BIN, "./cmd/tasksd"], { cwd: repoRoot, stdio: "inherit" });
+  // Custom-auth test server (behind a build tag so it stays out of ./... builds).
+  execFileSync(
+    "go",
+    ["build", "-tags", "e2etestserver", "-o", TESTSERVER_BIN, "./web/ui/e2e/testserver"],
+    { cwd: repoRoot, stdio: "inherit" },
+  );
 }
