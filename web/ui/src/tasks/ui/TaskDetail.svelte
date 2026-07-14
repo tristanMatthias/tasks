@@ -9,6 +9,7 @@
   import TaskMeta from "$tasks/ui/TaskMeta.svelte";
   import TaskSection from "$tasks/ui/TaskSection.svelte";
   import TaskMarkdown from "$tasks/ui/TaskMarkdown.svelte";
+  import GithubMark from "$tasks/ui/GithubMark.svelte";
   import StatusBadge from "$tasks/ui/StatusBadge.svelte";
   import TypeBadge from "$tasks/ui/TypeBadge.svelte";
   import TreePanel from "$board/ui/TreePanel.svelte";
@@ -83,11 +84,17 @@
         <TaskSection title="Activity">
           <ul data-testid="activity" class="flex flex-col gap-1.5">
             {#each task.comments as c (c.id)}
-              <li class="rounded-md border bg-card/50 px-2.5 py-1.5 text-sm">
-                <TaskMarkdown text={c.text} />
-                {#if c.author}
-                  <div class="mt-0.5 text-[11px] text-muted-foreground">{c.author}</div>
+              {@const isGithub = c.author === "github"}
+              <li class="flex items-start gap-2 rounded-md border bg-card/50 px-2.5 py-1.5 text-sm">
+                {#if isGithub}
+                  <GithubMark class="mt-0.5 size-4 shrink-0 text-muted-foreground" />
                 {/if}
+                <div class="min-w-0 flex-1 [&_a]:font-medium [&_a]:text-foreground [&_a]:underline">
+                  <TaskMarkdown text={c.text} />
+                  {#if c.author && !isGithub}
+                    <div class="mt-0.5 text-[11px] text-muted-foreground">{c.author}</div>
+                  {/if}
+                </div>
               </li>
             {/each}
           </ul>

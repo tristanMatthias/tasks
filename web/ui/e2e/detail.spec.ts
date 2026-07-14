@@ -31,13 +31,17 @@ test.describe("task detail", () => {
     await board.expectGraphNodeVisible(t.id);
   });
 
-  test("shows GitHub link activity on the ticket", async ({ board, server }) => {
+  test("shows GitHub link activity with the PR name as a link", async ({ board, server }) => {
     const t = await server.api.create({ title: "Linked task" });
-    // A ghlink-style comment (what the webhook records when a PR references it).
-    await server.api.comment(t.id, "Linked to PR #42: https://github.com/x/y/pull/42");
+    // A ghlink-style comment (what the webhook records): the PR name is the link.
+    await server.api.comment(t.id, "Closed by [Fix the parser](https://github.com/x/y/pull/42)");
     await board.open();
     await board.openTask(t.id);
-    await expect(board.page.getByTestId("activity")).toContainText("PR #42");
+    const activity = board.page.getByTestId("activity");
+    await expect(activity).toBeVisible();
+    // The link copy is the PR name, pointing at the PR.
+    const link = activity.getByRole("link", { name: "Fix the parser" });
+    await expect(link).toHaveAttribute("href", "https://github.com/x/y/pull/42");
   });
 
   test("the parent link navigates to the parent task", async ({ board, server }) => {
