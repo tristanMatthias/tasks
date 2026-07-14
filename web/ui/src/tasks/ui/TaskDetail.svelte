@@ -8,6 +8,7 @@
   import { newFilter } from "$tasks/model/filter.js";
   import TaskMeta from "$tasks/ui/TaskMeta.svelte";
   import TaskSection from "$tasks/ui/TaskSection.svelte";
+  import TaskMarkdown from "$tasks/ui/TaskMarkdown.svelte";
   import StatusBadge from "$tasks/ui/StatusBadge.svelte";
   import TypeBadge from "$tasks/ui/TypeBadge.svelte";
   import TreePanel from "$board/ui/TreePanel.svelte";
@@ -77,6 +78,21 @@
         </div>
         <h1 class="text-xl font-semibold leading-snug">{task.title || Copy.UntitledTask}</h1>
       </div>
+
+      {#if task.comments?.length}
+        <TaskSection title="Activity">
+          <ul data-testid="activity" class="flex flex-col gap-1.5">
+            {#each task.comments as c (c.id)}
+              <li class="rounded-md border bg-card/50 px-2.5 py-1.5 text-sm">
+                <TaskMarkdown text={c.text} />
+                {#if c.author}
+                  <div class="mt-0.5 text-[11px] text-muted-foreground">{c.author}</div>
+                {/if}
+              </li>
+            {/each}
+          </ul>
+        </TaskSection>
+      {/if}
 
       <TaskSection title={Copy.Description} text={task.description} />
       <TaskSection title={Copy.AcceptanceCriteria} text={task.acceptance_criteria} />

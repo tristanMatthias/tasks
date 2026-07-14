@@ -62,6 +62,15 @@ export interface Task {
   labels?: string[];
   assignee?: string;
   dependencies?: Dependency[];
+  comments?: Comment[];
+}
+
+/** A comment / activity entry on a task (e.g. a GitHub PR link). */
+export interface Comment {
+  id: string;
+  author?: string;
+  text: string;
+  created_at?: string;
 }
 
 /** Ids this task is blocked by (its own `blocks` dependency edges). */

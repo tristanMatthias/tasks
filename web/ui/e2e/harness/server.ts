@@ -42,6 +42,7 @@ export interface Api {
   patch(id: string, patch: Record<string, unknown>): Promise<Task>;
   close(id: string, reason?: string): Promise<void>;
   dep(blocked: string, blocker: string, type?: string): Promise<void>;
+  comment(id: string, text: string): Promise<void>;
   list(): Promise<Task[]>;
 }
 
@@ -110,6 +111,9 @@ function makeApi(baseURL: string, token: string): Api {
       const body: Record<string, unknown> = { blocked, blocker };
       if (type) body.type = type;
       await req("POST", "/api/v1/deps", body);
+    },
+    async comment(id, text) {
+      await req("POST", `/api/v1/tasks/${encodeURIComponent(id)}/comments`, { text });
     },
     async list() {
       const d = (await req("GET", "/api/issues?view=tree")).json() as Promise<{ issues: Task[] }>;
