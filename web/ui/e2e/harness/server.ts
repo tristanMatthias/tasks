@@ -43,6 +43,8 @@ export interface Api {
   close(id: string, reason?: string): Promise<void>;
   dep(blocked: string, blocker: string, type?: string): Promise<void>;
   comment(id: string, text: string): Promise<void>;
+  /** Seed a github-authored comment (custom testserver only). */
+  githubComment(id: string, text: string): Promise<void>;
   list(): Promise<Task[]>;
 }
 
@@ -114,6 +116,9 @@ function makeApi(baseURL: string, token: string): Api {
     },
     async comment(id, text) {
       await req("POST", `/api/v1/tasks/${encodeURIComponent(id)}/comments`, { text });
+    },
+    async githubComment(id, text) {
+      await req("POST", `/e2e/gh-comment?task=${encodeURIComponent(id)}&text=${encodeURIComponent(text)}`);
     },
     async list() {
       const d = (await req("GET", "/api/issues?view=tree")).json() as Promise<{ issues: Task[] }>;

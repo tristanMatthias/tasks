@@ -105,6 +105,18 @@ func main() {
 		http.Redirect(w, r, "https://github.com/apps/agenttasks-test/installations/new", http.StatusSeeOther)
 	})
 
+	// Seed a github-authored comment (what the webhook records) so the activity
+	// rendering can be exercised.
+	mux.HandleFunc("POST /e2e/gh-comment", func(w http.ResponseWriter, r *http.Request) {
+		id := r.URL.Query().Get("task")
+		text := r.URL.Query().Get("text")
+		if _, err := c.Comment(id, text, "github"); err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+		w.WriteHeader(http.StatusNoContent)
+	})
+
 	mux.Handle("/", srv.Handler())
 
 	log.Printf("testserver listening on %s", *addr)

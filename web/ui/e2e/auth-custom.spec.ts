@@ -27,6 +27,18 @@ test.describe("custom-mode auth", () => {
     await customBoard.expectSignedOut();
   });
 
+  test("github activity is one clickable row with the logo, PR name and #number", async ({ customBoard, customServer }) => {
+    const t = await customServer.api.create({ title: "Has a PR" });
+    await customServer.api.githubComment(t.id, "Closed by [Rework the lexer #12](https://github.com/x/y/pull/12)");
+    await customBoard.open();
+    await customBoard.openTask(t.id);
+    const item = customBoard.page.getByTestId("activity-item");
+    await expect(item).toBeVisible();
+    // The WHOLE row is a single link to the PR, and the copy carries the #number.
+    await expect(item).toHaveAttribute("href", "https://github.com/x/y/pull/12");
+    await expect(item).toContainText("Rework the lexer #12");
+  });
+
   test("settings offers the GitHub Connect action when the integration is configured", async ({ customBoard }) => {
     await customBoard.open();
     await customBoard.gotoSettings("connect");

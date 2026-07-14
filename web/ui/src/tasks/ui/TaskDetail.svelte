@@ -40,6 +40,13 @@
 
   // The children subtree has its own independent search/filter.
   const childFilter = $state(newFilter());
+
+  // A GitHub activity comment is "<prefix>[<link text>](<url>)". Split it so the
+  // whole row becomes one link to the PR. Returns null for non-link activity.
+  function parseGithubLink(text: string): { prefix: string; title: string; url: string } | null {
+    const m = text.match(/^(.*?)\[([^\]]+)\]\(([^)]+)\)\s*$/);
+    return m ? { prefix: m[1], title: m[2], url: m[3] } : null;
+  }
 </script>
 
 {#snippet taskLink(t: Task)}
@@ -84,18 +91,35 @@
         <TaskSection title="Activity">
           <ul data-testid="activity" class="flex flex-col gap-1.5">
             {#each task.comments as c (c.id)}
-              {@const isGithub = c.author === "github"}
-              <li class="flex items-start gap-2 rounded-md border bg-card/50 px-2.5 py-1.5 text-sm">
-                {#if isGithub}
-                  <GithubMark class="mt-0.5 size-4 shrink-0 text-muted-foreground" />
-                {/if}
-                <div class="min-w-0 flex-1 [&_a]:font-medium [&_a]:text-foreground [&_a]:underline">
-                  <TaskMarkdown text={c.text} />
-                  {#if c.author && !isGithub}
-                    <div class="mt-0.5 text-[11px] text-muted-foreground">{c.author}</div>
+              {@const link = c.author === "github" ? parseGithubLink(c.text) : null}
+              {#if link}
+                <li>
+                  <a
+                    href={link.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    data-testid="activity-item"
+                    class="flex items-center gap-2 rounded-md border bg-card/50 px-2.5 py-1.5 text-sm transition-colors hover:bg-accent/50"
+                  >
+                    <GithubMark class="size-4 shrink-0 text-muted-foreground" />
+                    <span class="min-w-0 truncate">
+                      <span class="text-muted-foreground">{link.prefix}</span><span class="font-medium">{link.title}</span>
+                    </span>
+                  </a>
+                </li>
+              {:else}
+                <li class="flex items-start gap-2 rounded-md border bg-card/50 px-2.5 py-1.5 text-sm">
+                  {#if c.author === "github"}
+                    <GithubMark class="mt-0.5 size-4 shrink-0 text-muted-foreground" />
                   {/if}
-                </div>
-              </li>
+                  <div class="min-w-0 flex-1">
+                    <TaskMarkdown text={c.text} />
+                    {#if c.author && c.author !== "github"}
+                      <div class="mt-0.5 text-[11px] text-muted-foreground">{c.author}</div>
+                    {/if}
+                  </div>
+                </li>
+              {/if}
             {/each}
           </ul>
         </TaskSection>
