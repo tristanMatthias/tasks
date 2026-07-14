@@ -304,6 +304,16 @@ func (c *Core) AddDep(blocked, blocker, dtype, actor string) error {
 	return nil
 }
 
+// Delete permanently removes a task (and its dependencies + comments).
+func (c *Core) Delete(id string) error {
+	id = c.resolveID(id)
+	if err := c.st.Delete(id); err != nil {
+		return err
+	}
+	c.changed(id)
+	return nil
+}
+
 // Comment appends a comment to a task.
 func (c *Core) Comment(id, text, author string) (*model.Task, error) {
 	id = c.resolveID(id)

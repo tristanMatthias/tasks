@@ -1,7 +1,9 @@
 <script lang="ts">
   import { ScrollArea } from "$lib/components/ui/scroll-area/index.js";
   import { Button } from "$lib/components/ui/button/index.js";
+  import * as Dialog from "$lib/components/ui/dialog/index.js";
   import WaypointsIcon from "@lucide/svelte/icons/waypoints";
+  import TrashIcon from "@lucide/svelte/icons/trash-2";
   import { Copy } from "$shared/copy.js";
   import { buildHierarchy, parentId } from "$tasks/model/hierarchy.js";
   import { blockingTasks, type Task } from "$tasks/model/issue.js";
@@ -24,10 +26,14 @@
     onSelect?: (id: string) => void;
     /** Open the Graph view rooted on this task (shown when provided). */
     onViewGraph?: (id: string) => void;
+    /** Permanently delete this task (shows a Delete action + confirm when set). */
+    onDelete?: (id: string) => void;
     /** Show the meta line (type/status/priority/id). Off when a header shows it. */
     meta?: boolean;
   }
-  let { task, tasks, onPatch, onSelect, onViewGraph, meta = true }: Props = $props();
+  let { task, tasks, onPatch, onSelect, onViewGraph, onDelete, meta = true }: Props = $props();
+
+  let confirmDelete = $state(false);
 
   const hierarchy = $derived(buildHierarchy(tasks));
   const childCount = $derived(task ? (hierarchy.children.get(task.id)?.length ?? 0) : 0);
@@ -71,18 +77,32 @@
           {:else}
             <span></span>
           {/if}
-          {#if onViewGraph}
-            <Button
-              variant="outline"
-              size="sm"
-              data-testid="view-in-graph"
-              class="shrink-0 gap-1.5"
-              onclick={() => onViewGraph?.(task.id)}
-              title="See this task in the context of its stack"
-            >
-              <WaypointsIcon class="size-4" /> View in graph
-            </Button>
-          {/if}
+          <div class="flex shrink-0 items-center gap-1.5">
+            {#if onViewGraph}
+              <Button
+                variant="outline"
+                size="sm"
+                data-testid="view-in-graph"
+                class="gap-1.5"
+                onclick={() => onViewGraph?.(task.id)}
+                title="See this task in the context of its stack"
+              >
+                <WaypointsIcon class="size-4" /> View in graph
+              </Button>
+            {/if}
+            {#if onDelete}
+              <Button
+                variant="ghost"
+                size="icon"
+                data-testid="delete-task"
+                class="size-8 text-muted-foreground hover:text-destructive"
+                onclick={() => (confirmDelete = true)}
+                title="Delete task"
+              >
+                <TrashIcon class="size-4" />
+              </Button>
+            {/if}
+          </div>
         </div>
         <h1 class="text-xl font-semibold leading-snug">{task.title || Copy.UntitledTask}</h1>
       </div>
@@ -173,6 +193,31 @@
       {/if}
     </div>
   </ScrollArea>
+
+  <Dialog.Root bind:open={confirmDelete}>
+    <Dialog.Content class="max-w-sm">
+      <Dialog.Header>
+        <Dialog.Title>Delete this task?</Dialog.Title>
+        <Dialog.Description>
+          “{task.title || Copy.UntitledTask}” and its comments will be permanently removed. This
+          can’t be undone.
+        </Dialog.Description>
+      </Dialog.Header>
+      <Dialog.Footer>
+        <Button variant="outline" onclick={() => (confirmDelete = false)}>Cancel</Button>
+        <Button
+          variant="destructive"
+          data-testid="delete-confirm"
+          onclick={() => {
+            confirmDelete = false;
+            onDelete?.(task.id);
+          }}
+        >
+          Delete
+        </Button>
+      </Dialog.Footer>
+    </Dialog.Content>
+  </Dialog.Root>
 {:else}
   <div class="flex h-full items-center justify-center px-6 text-center text-sm text-muted-foreground">
     {Copy.NoSelection}

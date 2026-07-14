@@ -45,6 +45,12 @@ class Session {
   get canLogout(): boolean {
     return this.authenticated && this.mode !== "none";
   }
+  /** Whether to expose destructive actions (hard delete) in the UI. Human
+   *  sessions only — never the shared-token path agents/CLI use. The server
+   *  gates the route too; this just hides the affordance from non-humans. */
+  get canDelete(): boolean {
+    return this.authenticated && this.mode !== "token";
+  }
   /** Server-verified active workspace (org id), if the embedder supplies it. */
   get org(): string | undefined {
     return this.#info?.org;

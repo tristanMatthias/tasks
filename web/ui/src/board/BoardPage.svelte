@@ -14,12 +14,13 @@
   import TaskDetail from "$tasks/ui/TaskDetail.svelte";
   import TaskMeta from "$tasks/ui/TaskMeta.svelte";
   import { IssueType, type Task } from "$tasks/model/issue.js";
-  import { initialTasks, loadTaskList, fetchTaskDetail, updateTask } from "$tasks/data.js";
+  import { initialTasks, loadTaskList, fetchTaskDetail, updateTask, deleteTask } from "$tasks/data.js";
   import { indexTasks } from "$tasks/markdown/task-index.svelte.js";
   import { LiveConnection } from "$shared/realtime/live.js";
   import { createPersistedFilter } from "./board-filter.svelte.js";
   import { createPersistedView, BoardView } from "./board-view.svelte.js";
   import { createPersistedSort } from "./board-sort.svelte.js";
+  import { session } from "$shared/auth/session.svelte.js";
   import { router } from "$shared/router/router.svelte.js";
   import { BoardPath, taskPath, taskIdFromPath } from "$shared/router/routes.js";
   import { Breakpoint, createMediaQuery } from "$shared/platform/media.svelte.js";
@@ -131,6 +132,14 @@
   const openTask = (id: string) => router.navigate(taskPath(id));
   const backToList = () => router.navigate(BoardPath);
 
+  // Hard delete (human-only on the server): drop it from the list and go back.
+  async function removeTask(id: string): Promise<void> {
+    if (!(await deleteTask(id))) return;
+    tasks = tasks.filter((t) => t.id !== id);
+    indexTasks(tasks);
+    if (selectedId === id || detailTask?.id === id) backToList();
+  }
+
   // The Graph view is ROOTED on a pinned task (not the transient selection), so
   // clicking a node updates the detail pane without the graph jumping. Root it on
   // the open task when you enter the view; re-root explicitly via double-click
@@ -192,7 +201,7 @@
     </ResizablePane>
     <ResizableHandle withHandle />
     <ResizablePane id="detail" order={2}>
-      <TaskDetail task={detailTask} {tasks} onPatch={patchTask} onSelect={openTask} onViewGraph={viewInGraph} />
+      <TaskDetail task={detailTask} {tasks} onPatch={patchTask} onSelect={openTask} onViewGraph={viewInGraph} onDelete={session.canDelete ? removeTask : undefined} />
     </ResizablePane>
   </ResizablePaneGroup>
 {:else}
@@ -247,7 +256,7 @@
             {/if}
           </div>
           <div class="min-h-0 flex-1">
-            <TaskDetail task={detailTask} {tasks} meta={false} onPatch={patchTask} onSelect={openTask} onViewGraph={viewInGraph} />
+            <TaskDetail task={detailTask} {tasks} meta={false} onPatch={patchTask} onSelect={openTask} onViewGraph={viewInGraph} onDelete={session.canDelete ? removeTask : undefined} />
           </div>
         </div>
       {/if}

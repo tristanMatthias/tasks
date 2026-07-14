@@ -20,6 +20,7 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
+	"strings"
 	"syscall"
 
 	"github.com/tristanMatthias/tasks/internal/config"
@@ -124,11 +125,16 @@ func serve(args []string, getenv func(string) string) error {
 	}
 
 	srv := httpapi.New(httpapi.Config{
-		Core:         c,
-		Static:       web.Static(),
-		Token:        cfg.Token,
-		APIKeys:      true, // bots/agents authenticate with `tasks_<secret>` keys
-		MCP:          mcpsrv.Handler(c),
+		Core:    c,
+		Static:  web.Static(),
+		Token:   cfg.Token,
+		APIKeys: true, // bots/agents authenticate with `tasks_<secret>` keys
+		MCP:     mcpsrv.Handler(c),
+		// Hard delete is available only to a human session (never an API key/bot).
+		AllowDelete: func(r *http.Request) bool {
+			id, ok := httpapi.IdentityFrom(r.Context())
+			return ok && !strings.HasPrefix(id.Subject, "key:")
+		},
 		Logger:       logger,
 		MaxBodyBytes: cfg.MaxBodyBytes,
 		RateLimit:    cfg.RateLimit,

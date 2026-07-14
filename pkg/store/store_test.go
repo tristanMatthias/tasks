@@ -86,6 +86,39 @@ func TestUpsertReplacesDepsAndComments(t *testing.T) {
 	}
 }
 
+func TestDelete(t *testing.T) {
+	st := open(t)
+	// A task carrying both a dependency and a comment, plus a second task that
+	// depends ON it — so Delete must clear links in either direction.
+	a := mk("proj-a", "open", "task", p(2))
+	a.Comments = []model.Comment{{ID: "c1", IssueID: "proj-a", Text: "hi"}}
+	a.Dependencies = []model.Dependency{{IssueID: "proj-a", DependsOnID: "x", Type: "blocks"}}
+	must(t, st.Insert(a))
+	b := mk("proj-b", "open", "task", p(1))
+	b.Dependencies = []model.Dependency{{IssueID: "proj-b", DependsOnID: "proj-a", Type: "blocks"}}
+	must(t, st.Insert(b))
+
+	must(t, st.Delete("proj-a"))
+	if _, err := st.Get("proj-a"); err != ErrNotFound {
+		t.Fatalf("expected task gone, got %v", err)
+	}
+	// The dangling dependency on the deleted task is cleared, not orphaned.
+	if got, _ := st.Get("proj-b"); got.DependencyCount != 0 {
+		t.Fatalf("dependency on deleted task not cleared: %+v", got)
+	}
+
+	// Deleting a non-existent task reports ErrNotFound.
+	if err := st.Delete("nope"); err != ErrNotFound {
+		t.Fatalf("expected ErrNotFound, got %v", err)
+	}
+
+	// With the DB closed, Begin fails and the error propagates.
+	st.Close()
+	if err := st.Delete("proj-b"); err == nil {
+		t.Fatal("expected an error deleting against a closed store")
+	}
+}
+
 func TestListFilters(t *testing.T) {
 	st := open(t)
 	must(t, st.Insert(withLabels(mk("proj-1", "open", "task", p(2)), "backend")))

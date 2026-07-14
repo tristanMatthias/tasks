@@ -80,6 +80,11 @@ func main() {
 		Static:   web.Static(),
 		Auth:     customAuth{},
 		LoginURL: loginPath, // the landing page's "log in" target
+		// Delete only for the cookie session (a human), never the seed bearer.
+		AllowDelete: func(r *http.Request) bool {
+			id, ok := httpapi.IdentityFrom(r.Context())
+			return ok && id.Subject == "e2e-user"
+		},
 	})
 
 	mux := http.NewServeMux()

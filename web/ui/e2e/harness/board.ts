@@ -161,6 +161,18 @@ export class Board {
     return this;
   }
 
+  /** Delete the open task via the detail action + confirm dialog. */
+  async deleteTask(): Promise<this> {
+    await this.page.getByTestId("delete-task").click();
+    await this.page.getByTestId("delete-confirm").click();
+    return this;
+  }
+
+  /** True when the detail pane offers a delete action (humans only). */
+  async hasDeleteAction(): Promise<boolean> {
+    return (await this.page.getByTestId("delete-task").count()) > 0;
+  }
+
   /** Follow an in-detail task link (parent / blocking / child) by its title.
    *  Uses the real <button> element (detail links), not the tree rows, which are
    *  role="button" divs and would otherwise clash on the same title. */

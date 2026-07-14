@@ -49,9 +49,10 @@ type Server struct {
 	rl      *rateLimiter
 	metrics *metrics
 
-	hub      *wsHub
-	topicFor func(r *http.Request) string
-	csp      string
+	hub         *wsHub
+	topicFor    func(r *http.Request) string
+	csp         string
+	allowDelete func(r *http.Request) bool
 
 	mu         sync.RWMutex
 	lastChange time.Time
@@ -86,6 +87,13 @@ type Config struct {
 	// API calls the default 'self'-only policy would block). Empty -> the strict
 	// default. Must be kept in sync with whatever InjectHead loads.
 	CSP string
+
+	// AllowDelete gates hard task deletion. When nil, DELETE /api/v1/tasks/{id} is
+	// NOT registered at all — deletion is impossible (and never an MCP tool or CLI
+	// command, since it's deliberately not in the op registry). When set, the
+	// route exists and each request must pass the predicate — an embedder returns
+	// true only for a human session, never an API key / agent.
+	AllowDelete func(r *http.Request) bool
 
 	// LoginURL, when set, is reported by /api/authinfo so the UI redirects an
 	// unauthenticated visitor to a hosted sign-in page (used with a custom Auth).
@@ -152,6 +160,7 @@ func New(cfg Config) *Server {
 		hub:                 newWSHub(),
 		topicFor:            cfg.TopicFor,
 		csp:                 cfg.CSP,
+		allowDelete:         cfg.AllowDelete,
 		lastChange:          now,
 	}
 	if cfg.RateLimit > 0 {
@@ -198,6 +207,11 @@ func (s *Server) Handler() http.Handler {
 	app.HandleFunc("POST /api/pull", s.handlePull)
 	app.HandleFunc("POST /api/v1/import", s.handleImport)
 	app.HandleFunc("GET /api/ws", s.handleWS)
+	// Hard delete is a dedicated, gated route — deliberately NOT an op, so it's
+	// never exposed via MCP or the CLI. Only registered when an embedder opts in.
+	if s.allowDelete != nil {
+		app.HandleFunc("DELETE /api/v1/tasks/{id}", s.handleDelete)
+	}
 	for _, op := range api.Ops() {
 		app.HandleFunc(op.Method+" "+op.Path, s.opHandler(op))
 	}

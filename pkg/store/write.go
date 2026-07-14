@@ -159,6 +159,32 @@ func (s *Store) Patch(id string, set map[string]any, updatedAt string) error {
 	return nil
 }
 
+// Delete permanently removes a task along with its dependencies (in either
+// direction) and comments. Returns ErrNotFound if the task doesn't exist.
+func (s *Store) Delete(id string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	tx, err := s.db.Begin()
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	if _, err := tx.Exec(`DELETE FROM dependencies WHERE issue_id=? OR depends_on_id=?`, id, id); err != nil {
+		return err
+	}
+	if _, err := tx.Exec(`DELETE FROM comments WHERE issue_id=?`, id); err != nil {
+		return err
+	}
+	res, err := tx.Exec(`DELETE FROM tasks WHERE id=?`, id)
+	if err != nil {
+		return err
+	}
+	if n, _ := res.RowsAffected(); n == 0 {
+		return ErrNotFound
+	}
+	return tx.Commit()
+}
+
 var allowedCol = map[string]bool{
 	"title": true, "description": true, "status": true, "priority": true,
 	"issue_type": true, "owner": true, "assignee": true, "started_at": true,

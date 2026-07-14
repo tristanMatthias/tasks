@@ -83,6 +83,14 @@ export function fetchTaskDetail(id: string): Promise<Task | null> {
     .catch(() => null);
 }
 
+/** Permanently delete a task. Resolves true on success. Only humans (session)
+ *  are allowed by the server; a missing route/permission resolves false. */
+export function deleteTask(id: string): Promise<boolean> {
+  return fetch(`/api/v1/tasks/${encodeURIComponent(id)}`, { method: "DELETE" })
+    .then((r) => r.ok)
+    .catch(() => false);
+}
+
 /** Patch a task and resolve to the fresh full record (null on failure). */
 export function updateTask(id: string, patch: Partial<Task>): Promise<Task | null> {
   return fetch(`/api/v1/tasks/${encodeURIComponent(id)}`, {

@@ -115,6 +115,25 @@ func (s *Server) handlePull(w http.ResponseWriter, r *http.Request) {
 
 // ---- generic REST handler generated from an api.Op ----
 
+// handleDelete permanently removes a task. Gated by AllowDelete (human sessions
+// only); registered only when that predicate is set.
+func (s *Server) handleDelete(w http.ResponseWriter, r *http.Request) {
+	if s.allowDelete == nil || !s.allowDelete(r) {
+		writeErr(w, http.StatusForbidden, errors.New("delete not permitted"))
+		return
+	}
+	c, err := s.coreFor(r)
+	if err != nil {
+		writeErr(w, http.StatusBadRequest, err)
+		return
+	}
+	if err := c.Delete(r.PathValue("id")); err != nil {
+		writeCoreErr(w, err)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
 func (s *Server) opHandler(op *api.Op) http.HandlerFunc {
 	fields := op.Fields()
 	return func(w http.ResponseWriter, r *http.Request) {
