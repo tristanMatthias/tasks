@@ -30,6 +30,22 @@ test.describe("graph", () => {
     await board.expectGraphNodeVisible(blocker.id); // upstream blocker is in the stack
   });
 
+  test("a bug child of a big epic still shows in the epic's graph", async ({ board, server }) => {
+    const epic = await server.api.create({ title: "Big epic", issue_type: "epic" });
+    // >12 task children: the old per-node fan-out cap (12) would fill up on these
+    // (tasks sort before bugs), silently dropping the bug that sorts last.
+    for (let i = 0; i < 13; i++) {
+      await server.api.create({ title: `Child task ${i}`, issue_type: "task", parent: epic.id });
+    }
+    const bug = await server.api.create({ title: "The elusive bug", issue_type: "bug", parent: epic.id });
+
+    await board.open();
+    await board.openTask(epic.id);
+    await board.view("graph");
+    await board.expectGraphNodeVisible(epic.id);
+    await board.expectGraphNodeVisible(bug.id); // was dropped by the fan-out cap
+  });
+
   test("kind selector, node click, re-root and full page", async ({ board, server }) => {
     const epic = await server.api.create({ title: "Kind epic", issue_type: "epic" });
     const child = await server.api.create({ title: "Kind child", parent: epic.id });

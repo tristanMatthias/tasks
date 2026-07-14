@@ -44,7 +44,6 @@ interface Opts {
   parent: boolean;
   maxDepth?: number;
   maxNodes?: number;
-  maxFanout?: number;
 }
 
 function buildDirected(
@@ -57,7 +56,6 @@ function buildDirected(
   const h = buildHierarchy(tasks);
   const maxDepth = opts.maxDepth ?? 4;
   const maxNodes = opts.maxNodes ?? 60;
-  const maxFanout = opts.maxFanout ?? 12; // cap one node's neighbors per direction
 
   const ranks = new Map<string, number>([[focusId, 0]]);
   const edges: GraphEdge[] = [];
@@ -90,8 +88,10 @@ function buildDirected(
           if (opts.blocks) for (const b of blockingTasks(id, tasks)) neighbors.push([b.id, "blocks"]);
           if (opts.parent) for (const c of h.children.get(id) ?? []) neighbors.push([c, "parent"]);
         }
-        // Cap a single node's fan-out so one huge parent can't explode a column.
-        for (const [nid, kind] of neighbors.slice(0, maxFanout)) {
+        // Every neighbor is a candidate; the overall graph is bounded by maxNodes
+        // (a per-node fan-out cap would silently drop whole types — children are
+        // ordered by type, so bugs/chores, sorted last, would always be cut).
+        for (const [nid, kind] of neighbors) {
           // A filtered-out node is a WALL: skip it and don't traverse through it,
           // so everything reachable only via it (its "children") drops out too.
           const nt = byId.get(nid);
