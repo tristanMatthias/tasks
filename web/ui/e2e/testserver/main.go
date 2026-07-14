@@ -96,6 +96,15 @@ func main() {
 		})
 		http.Redirect(w, r, dest, http.StatusSeeOther)
 	})
+	// Stub the GitHub integration endpoints so the settings UI can be exercised.
+	mux.HandleFunc("GET /api/integrations/github", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"connected":false,"repos":[],"connect_url":"/integrations/github/connect","app_slug":"agenttasks-test"}`))
+	})
+	mux.HandleFunc("GET /integrations/github/connect", func(w http.ResponseWriter, r *http.Request) {
+		http.Redirect(w, r, "https://github.com/apps/agenttasks-test/installations/new", http.StatusSeeOther)
+	})
+
 	mux.Handle("/", srv.Handler())
 
 	log.Printf("testserver listening on %s", *addr)

@@ -1,4 +1,4 @@
-import { test } from "./harness";
+import { test, expect } from "./harness";
 
 // These run against the CUSTOM-auth engine (mode "custom", an embedder cookie
 // session) — the exact shape agenttasks/GitHub uses. Token mode never exercises
@@ -25,6 +25,14 @@ test.describe("custom-mode auth", () => {
     // And it stays signed out across a reload (no client fallback resurrects it).
     await customBoard.reload();
     await customBoard.expectSignedOut();
+  });
+
+  test("settings offers the GitHub Connect action when the integration is configured", async ({ customBoard }) => {
+    await customBoard.open();
+    await customBoard.gotoSettings("connect");
+    const connect = customBoard.page.getByTestId("github-connect");
+    await expect(connect).toBeVisible();
+    await expect(connect).toHaveAttribute("href", "/integrations/github/connect");
   });
 
   test("a signed-out visitor sees the landing with a login affordance", async ({ customBoard, customServer }) => {
