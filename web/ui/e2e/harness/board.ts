@@ -181,6 +181,16 @@ export class Board {
     return this;
   }
 
+  // --------------------------------------------------------------- gates
+  async gateCount(): Promise<number> {
+    return this.page.getByTestId("gate-item").count();
+  }
+
+  /** Gate rows filtered by verification state ("pending" | "verified"). */
+  gate(status: "pending" | "verified"): Locator {
+    return this.page.locator(`[data-testid="gate-item"][data-gate-status="${status}"]`);
+  }
+
   /** Assert a read-only detail section (Description, Notes, …) shows `text`. */
   async expectSection(text: string): Promise<this> {
     await expect(this.page.getByText(text, { exact: false }).first()).toBeVisible();

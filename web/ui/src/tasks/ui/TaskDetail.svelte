@@ -12,6 +12,7 @@
   import TaskSection from "$tasks/ui/TaskSection.svelte";
   import TaskMarkdown from "$tasks/ui/TaskMarkdown.svelte";
   import GithubMark from "$tasks/ui/GithubMark.svelte";
+  import GateList from "$tasks/ui/GateList.svelte";
   import StatusBadge from "$tasks/ui/StatusBadge.svelte";
   import TypeBadge from "$tasks/ui/TypeBadge.svelte";
   import TreePanel from "$board/ui/TreePanel.svelte";
@@ -147,6 +148,12 @@
 
       <TaskSection title={Copy.Description} text={task.description} />
       <TaskSection title={Copy.AcceptanceCriteria} text={task.acceptance_criteria} />
+
+      {#if task.gates?.length}
+        <TaskSection title="{Copy.AcceptanceGates} ({task.gates.length})">
+          <GateList gates={task.gates} />
+        </TaskSection>
+      {/if}
       <TaskSection title={Copy.Design} text={task.design} />
       <TaskSection title={Copy.Notes} text={task.notes} />
 

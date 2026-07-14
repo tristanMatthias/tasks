@@ -3,7 +3,7 @@
  * custom properties in app.css (so they are themeable); this module only names
  * which token each status/type uses. Nothing here hard-codes a color.
  */
-import { IssueType, Status } from "./issue.js";
+import { GateStatus, IssueType, Status } from "./issue.js";
 
 /** The CSS custom property that colors each issue type's (outlined) badge. */
 export const TYPE_COLOR_VAR: Readonly<Record<IssueType, string>> = {
@@ -37,4 +37,17 @@ export const STATUS_LABEL: Readonly<Record<Status, string>> = {
   [Status.InProgress]: "In progress",
   [Status.Deferred]: "Deferred",
   [Status.Closed]: "Closed",
+};
+
+/** Gate verification reuses the status palette: verified→open (green success),
+ *  pending→deferred (amber "waiting"). No new color tokens needed. */
+export const GATE_STATUS_COLOR_VAR: Readonly<Record<GateStatus, string>> = {
+  [GateStatus.Verified]: "var(--status-open)",
+  [GateStatus.Pending]: "var(--status-deferred)",
+};
+
+/** Human-readable label for a gate's verification state. */
+export const GATE_STATUS_LABEL: Readonly<Record<GateStatus, string>> = {
+  [GateStatus.Verified]: "Verified",
+  [GateStatus.Pending]: "Pending",
 };

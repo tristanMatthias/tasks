@@ -45,7 +45,19 @@ export interface Api {
   comment(id: string, text: string): Promise<void>;
   /** Seed a github-authored comment (custom testserver only). */
   githubComment(id: string, text: string): Promise<void>;
+  /** Add a command acceptance gate; returns the created gate's id (g1, g2…). */
+  addGate(id: string, command: string, description?: string): Promise<string>;
+  /** Verify one gate via the real begin/complete handshake (exit 0). */
+  verifyGate(id: string, gate: string): Promise<void>;
   list(): Promise<Task[]>;
+}
+
+/** Minimal shapes of the gate + verify API responses used by the harness. */
+interface GateResp {
+  gates?: { id: string }[];
+}
+interface VerifySessionResp {
+  challenges?: { gate_id: string; token: string }[];
 }
 
 export interface TestServer {
@@ -119,6 +131,21 @@ function makeApi(baseURL: string, token: string): Api {
     },
     async githubComment(id, text) {
       await req("POST", `/e2e/gh-comment?task=${encodeURIComponent(id)}&text=${encodeURIComponent(text)}`);
+    },
+    async addGate(id, command, description) {
+      const before = ((await (await req("GET", `/api/v1/tasks/${encodeURIComponent(id)}`)).json()) as GateResp).gates ?? [];
+      await req("POST", `/api/v1/tasks/${encodeURIComponent(id)}/gates`, { command, description });
+      const after = ((await (await req("GET", `/api/v1/tasks/${encodeURIComponent(id)}`)).json()) as GateResp).gates ?? [];
+      // The newest gate is the one that wasn't there before.
+      const added = after.find((g) => !before.some((b) => b.id === g.id));
+      return added?.id ?? `g${after.length}`;
+    },
+    async verifyGate(id, gate) {
+      const sess = (await (await req("POST", `/api/v1/tasks/${encodeURIComponent(id)}/gates/verify/begin`, {})).json()) as VerifySessionResp;
+      const ch = (sess.challenges ?? []).find((c) => c.gate_id === gate);
+      if (!ch) throw new Error(`no pending gate ${gate} to verify on ${id}`);
+      await req("POST", `/api/v1/tasks/${encodeURIComponent(id)}/gates/${encodeURIComponent(gate)}/verify/complete`,
+        { token: ch.token, exit_code: 0, output: "PASS\nok" });
     },
     async list() {
       const d = (await req("GET", "/api/issues?view=tree")).json() as Promise<{ issues: Task[] }>;

@@ -56,6 +56,8 @@ export const Copy = {
   ChangePriority: "Change priority",
   Description: "Description",
   AcceptanceCriteria: "Acceptance criteria",
+  AcceptanceGates: "Acceptance gates",
+  GatesBlockClose: "Verify these with the CLI (tasks verify) before this task can be closed.",
   Design: "Design",
   Notes: "Notes",
   Labels: "Labels",

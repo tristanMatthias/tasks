@@ -48,6 +48,33 @@ export interface Dependency {
   type: DependencyType;
 }
 
+/** Verification state of an acceptance gate. */
+export const GateStatus = {
+  Pending: "pending",
+  Verified: "verified",
+} as const;
+export type GateStatus = (typeof GateStatus)[keyof typeof GateStatus];
+
+/** Kind of acceptance gate (only `command` is implemented server-side today). */
+export const GateType = {
+  Command: "command",
+} as const;
+export type GateType = (typeof GateType)[keyof typeof GateType];
+
+/** An acceptance gate: a check that must pass before a task can be closed.
+ *  Read-only in the UI — gates are defined + verified via the CLI/API. */
+export interface Gate {
+  id: string;
+  type: GateType;
+  status: GateStatus;
+  description?: string;
+  command?: string;
+  verified_at?: string;
+  verified_by?: string;
+  exit_code?: number;
+  evidence?: string;
+}
+
 /** A single task/issue (a subset of the API shape the UI reads). */
 export interface Task {
   id: string;
@@ -63,6 +90,7 @@ export interface Task {
   assignee?: string;
   dependencies?: Dependency[];
   comments?: Comment[];
+  gates?: Gate[];
 }
 
 /** A comment / activity entry on a task (e.g. a GitHub PR link). */
