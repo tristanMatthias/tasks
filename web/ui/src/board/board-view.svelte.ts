@@ -17,3 +17,7 @@ export type BoardView = (typeof BoardView)[keyof typeof BoardView];
 export function createPersistedView(): PersistedState<BoardView> {
   return new PersistedState<BoardView>(StorageKey.View, BoardView.Tree);
 }
+
+/** The app-wide active view. Shared so anything (e.g. the command palette) can
+ *  switch views and the board reacts — the same reactive instance, not a copy. */
+export const boardView = createPersistedView();

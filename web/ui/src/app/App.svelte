@@ -2,6 +2,7 @@
   import { ModeWatcher } from "mode-watcher";
   import { Toaster } from "$lib/components/ui/sonner/index.js";
   import AppHeader from "./AppHeader.svelte";
+  import CommandPalette from "./CommandPalette.svelte";
   import BoardPage from "$board/BoardPage.svelte";
   import AuthGate from "$tasks/ui/auth/AuthGate.svelte";
   import SettingsPage from "$tasks/ui/settings/SettingsPage.svelte";
@@ -15,6 +16,8 @@
 <Toaster />
 
 <AuthGate>
+  <!-- Global ⌘K palette — available on the board and in settings. -->
+  <CommandPalette />
   {#if onSettings}
     <SettingsPage />
   {:else}

@@ -55,6 +55,13 @@ export const Copy = {
   ChangeStatus: "Change status",
   ChangePriority: "Change priority",
   Description: "Description",
+  // Command palette (⌘K)
+  CommandPlaceholder: "Search tasks or jump to…",
+  CommandNoResults: "No matches.",
+  CommandTasks: "Tasks",
+  CommandViews: "Views",
+  CommandGoTo: "Go to",
+  CommandToggleTheme: "Toggle theme",
   AcceptanceCriteria: "Acceptance criteria",
   AcceptanceGates: "Acceptance gates",
   GatesBlockClose: "Verify these with the CLI (tasks verify) before this task can be closed.",

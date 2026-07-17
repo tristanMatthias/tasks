@@ -18,7 +18,7 @@
   import { indexTasks } from "$tasks/markdown/task-index.svelte.js";
   import { LiveConnection } from "$shared/realtime/live.js";
   import { createPersistedFilter } from "./board-filter.svelte.js";
-  import { createPersistedView, BoardView } from "./board-view.svelte.js";
+  import { boardView, BoardView } from "./board-view.svelte.js";
   import { createPersistedSort } from "./board-sort.svelte.js";
   import { session } from "$shared/auth/session.svelte.js";
   import { router } from "$shared/router/router.svelte.js";
@@ -41,7 +41,7 @@
   // Search + facet filter, persisted across refreshes.
   const filter = createPersistedFilter();
   // Which view is active (tree / graph / dashboard), also persisted.
-  const view = createPersistedView();
+  const view = boardView;
   // Sort order (field + direction), also persisted.
   const sort = createPersistedSort();
   // The full record for the open task (the list is slim — no description, etc.).

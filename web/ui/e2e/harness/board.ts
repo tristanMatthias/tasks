@@ -181,6 +181,24 @@ export class Board {
     return this;
   }
 
+  // ------------------------------------------------------- command palette (⌘K)
+  /** Open the ⌘K palette and wait for its input. */
+  async openPalette(): Promise<this> {
+    await this.page.keyboard.press("ControlOrMeta+k");
+    await expect(this.page.locator('[data-slot="command-input"]')).toBeVisible();
+    return this;
+  }
+
+  async paletteSearch(q: string): Promise<this> {
+    await this.page.locator('[data-slot="command-input"]').fill(q);
+    return this;
+  }
+
+  /** A palette result row by its visible text (task title or command label). */
+  paletteItem(text: string): Locator {
+    return this.page.locator('[data-slot="command-item"]', { hasText: text });
+  }
+
   // --------------------------------------------------------------- gates
   async gateCount(): Promise<number> {
     return this.page.getByTestId("gate-item").count();
