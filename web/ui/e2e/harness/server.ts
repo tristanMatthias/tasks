@@ -204,7 +204,9 @@ export function startServer(): Promise<TestServer> {
     token,
     mode: "token",
     label: "tasksd",
-    args: (db, port) => ["-addr", `127.0.0.1:${port}`, "--db", db, "--token", token, "--prefix", "e2e"],
+    // Rate limiting off: the suite seeds many tasks over the API in quick bursts
+    // (rate limits are covered separately by the middleware unit tests).
+    args: (db, port) => ["-addr", `127.0.0.1:${port}`, "--db", db, "--token", token, "--prefix", "e2e", "--rate-limit", "0"],
     authPath: (t) => `/auth?token=${t}`,
   });
 }
