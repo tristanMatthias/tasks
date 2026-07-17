@@ -15,9 +15,13 @@
   import LiveBoard from "./LiveBoard.svelte";
   import Terminal from "./Terminal.svelte";
   import DependencyFlow from "./DependencyFlow.svelte";
+  import GithubMark from "$tasks/ui/GithubMark.svelte";
   import logoDark from "../../brand/logo.png";
 
-  let { loginUrl = "/sign-in" }: { loginUrl?: string } = $props();
+  let {
+    loginUrl = "/sign-in",
+    githubUrl = "https://github.com/tristanMatthias/agenttasks",
+  }: { loginUrl?: string; githubUrl?: string } = $props();
 
   function login(): void {
     const back = encodeURIComponent(location.pathname + location.search + location.hash);
@@ -67,8 +71,19 @@
         <a href="#mcp" class="transition-colors hover:text-foreground">MCP</a>
         <a href="#features" class="transition-colors hover:text-foreground">Features</a>
       </nav>
-      <div class="ml-auto">
+      <div class="ml-auto flex items-center gap-2">
         <Button size="sm" onclick={login} class="gap-1.5">Log in <ArrowRightIcon class="size-4" /></Button>
+        <Button
+          href={githubUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          variant="outline"
+          size="sm"
+          class="gap-1.5"
+          aria-label="GitHub repository"
+        >
+          <GithubMark class="size-4" /> GitHub
+        </Button>
       </div>
     </div>
   </header>
