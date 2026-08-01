@@ -248,6 +248,30 @@ func (s *Store) existsTx(id string) (bool, error) {
 }
 
 // AddDependency inserts a dependency edge (idempotent).
+// Reparent replaces a task's containment edge: it drops any existing
+// parent-child/parent dependency where the task is the child, and (unless
+// newParentID is empty — detach to a root) adds a fresh parent-child edge to the
+// new parent. Atomic. The task's id is unchanged.
+func (s *Store) Reparent(childID, newParentID, now, by string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	tx, err := s.db.Begin()
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	if _, err := tx.Exec(`DELETE FROM dependencies WHERE issue_id=? AND type IN ('parent-child','parent')`, childID); err != nil {
+		return err
+	}
+	if newParentID != "" {
+		if _, err := tx.Exec(`INSERT OR IGNORE INTO dependencies (issue_id,depends_on_id,type,created_at,created_by,metadata)
+			VALUES (?,?,?,?,?,?)`, childID, newParentID, "parent-child", now, by, "{}"); err != nil {
+			return err
+		}
+	}
+	return tx.Commit()
+}
+
 func (s *Store) AddDependency(d model.Dependency) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()

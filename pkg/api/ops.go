@@ -67,6 +67,7 @@ type UpdateInput struct {
 	IssueType    *string  `json:"issue_type"   in:"body" cli:"-t,--type"      desc:"New issue type"`
 	Notes        *string  `json:"notes"        in:"body" cli:"--notes"        desc:"Replace notes"`
 	AppendNotes  string   `json:"append_notes" in:"body" cli:"--append-notes" desc:"Append to notes"`
+	Parent       *string  `json:"parent"       in:"body" cli:"--parent"       desc:"Reparent under this id; empty string detaches to a root"`
 	AddLabels    []string `json:"add_labels"   in:"body" cli:"--add-label"    desc:"Add labels (CSV)"`
 	RemoveLabels []string `json:"remove_labels" in:"body" cli:"--remove-label" desc:"Remove labels (CSV)"`
 }
@@ -198,7 +199,8 @@ func Ops() Registry {
 				return c.Update(p.ID, core.UpdateParams{
 					Claim: p.Claim, Status: p.Status, Assignee: p.Assignee, Title: p.Title,
 					Description: p.Description, Priority: p.Priority, IssueType: p.IssueType,
-					Notes: p.Notes, AppendNotes: p.AppendNotes, AddLabels: p.AddLabels, RemoveLabels: p.RemoveLabels,
+					Notes: p.Notes, AppendNotes: p.AppendNotes, Parent: p.Parent,
+					AddLabels: p.AddLabels, RemoveLabels: p.RemoveLabels,
 				})
 			},
 		},

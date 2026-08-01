@@ -163,6 +163,9 @@ type UpdateParams struct {
 	AcceptanceCriteria *string
 	Notes              *string
 	AppendNotes        string
+	// Parent reparents the task: non-nil moves it under that id, or detaches it
+	// to a root when the value is empty. The task's id is unchanged.
+	Parent             *string
 	SetLabels          *[]string
 	AddLabels          []string
 	RemoveLabels       []string
@@ -251,10 +254,56 @@ func (c *Core) Update(id string, p UpdateParams) (*model.Task, error) {
 			return nil, wrap("update", err)
 		}
 	}
-	if p.Claim || len(set) > 0 {
+
+	reparented := false
+	if p.Parent != nil {
+		if err := c.reparent(id, *p.Parent, now, actor); err != nil {
+			return nil, err
+		}
+		reparented = true
+	}
+
+	if p.Claim || len(set) > 0 || reparented {
 		c.changed(id)
 	}
 	return c.st.Get(id)
+}
+
+// reparent moves id under newParent (empty → detach to a root), replacing its
+// containment edge. Guards against a missing task/parent and against cycles
+// (a task can't be parented under itself or one of its own descendants). The id
+// is intentionally left unchanged — ids are permanent references.
+func (c *Core) reparent(id, newParent, now, actor string) error {
+	if ok, err := c.st.Exists(id); err != nil {
+		return err
+	} else if !ok {
+		return ErrNotFound
+	}
+	np := c.resolveID(strings.TrimSpace(newParent))
+	if np != "" {
+		if np == id {
+			return fmt.Errorf("a task can't be its own parent")
+		}
+		if ok, err := c.st.Exists(np); err != nil {
+			return err
+		} else if !ok {
+			return fmt.Errorf("parent not found: %s", np)
+		}
+		// Cycle guard: the new parent must not be id or any of its descendants.
+		sub, err := c.st.Subtree(id)
+		if err != nil {
+			return err
+		}
+		for _, t := range sub {
+			if t.ID == np {
+				return fmt.Errorf("cannot reparent %s under its own descendant %s", id, np)
+			}
+		}
+	}
+	if err := c.st.Reparent(id, np, now, actor); err != nil {
+		return wrap("reparent", err)
+	}
+	return nil
 }
 
 // CloseParams describes closing a task.

@@ -14,6 +14,7 @@ for ALL task tracking — do NOT use TodoWrite or markdown TODO lists.
   tasks ready              # Find claimable work (open, unblocked)
   tasks show <id>          # View task details
   tasks update <id> --claim  # Atomically claim work (assignee=you, in_progress)
+  tasks update <id> --parent <new>   # Reparent (move under <new>; --parent "" detaches to a root)
   tasks close <id> -r "…"  # Complete work with a reason
   tasks create "<title>" -p 1 -t task   # File new work
   tasks dep add <blocked> <blocker>     # Record a blocks dependency

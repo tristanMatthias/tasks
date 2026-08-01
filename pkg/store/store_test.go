@@ -119,6 +119,41 @@ func TestDelete(t *testing.T) {
 	}
 }
 
+func TestReparentStore(t *testing.T) {
+	st := open(t)
+	must(t, st.Insert(mk("proj-a", "open", "task", p(2))))
+	must(t, st.Insert(mk("proj-b", "open", "task", p(1))))
+	child := mk("proj-a.1", "open", "task", p(2))
+	child.Dependencies = []model.Dependency{{IssueID: "proj-a.1", DependsOnID: "proj-a", Type: "parent-child", Metadata: "{}"}}
+	must(t, st.Insert(child))
+
+	// Move under proj-b: the parent-child edge now points there.
+	must(t, st.Reparent("proj-a.1", "proj-b", "2026-01-01T00:00:00Z", "me"))
+	got, _ := st.Get("proj-a.1")
+	if len(got.Dependencies) != 1 || got.Dependencies[0].DependsOnID != "proj-b" {
+		t.Fatalf("edge not moved: %+v", got.Dependencies)
+	}
+	// proj-b now lists the child; proj-a no longer does.
+	if len(listIDs(t, st, Filter{Parent: "proj-b"})) != 1 {
+		t.Fatal("child should be under proj-b")
+	}
+	if len(listIDs(t, st, Filter{Parent: "proj-a"})) != 0 {
+		t.Fatal("child should no longer be under proj-a")
+	}
+
+	// Detach: no containment edge remains.
+	must(t, st.Reparent("proj-a.1", "", "2026-01-01T00:00:00Z", "me"))
+	if got, _ = st.Get("proj-a.1"); len(got.Dependencies) != 0 {
+		t.Fatalf("detach should leave no parent edge: %+v", got.Dependencies)
+	}
+
+	// Errors propagate (closed store).
+	st.Close()
+	if err := st.Reparent("proj-a.1", "proj-b", "x", "me"); err == nil {
+		t.Fatal("expected an error on a closed store")
+	}
+}
+
 func TestListFilters(t *testing.T) {
 	st := open(t)
 	must(t, st.Insert(withLabels(mk("proj-1", "open", "task", p(2)), "backend")))
