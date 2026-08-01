@@ -312,9 +312,43 @@ type CloseParams struct {
 	Actor  string
 }
 
+// openChildren returns the ids of direct sub-tasks that aren't done yet (open or
+// in_progress); deferred/closed children don't block the parent.
+func openChildren(kids []model.Task) []string {
+	var out []string
+	for _, k := range kids {
+		if k.Status == "open" || k.Status == "in_progress" {
+			out = append(out, k.ID)
+		}
+	}
+	return out
+}
+
+// openChildrenErr is a short, agent-friendly message that names the blockers
+// (capped) and says what to do.
+func openChildrenErr(id string, open []string) error {
+	shown, extra := open, 0
+	if len(shown) > 5 {
+		shown, extra = shown[:5], len(shown)-5
+	}
+	list := strings.Join(shown, ", ")
+	if extra > 0 {
+		list += fmt.Sprintf(", +%d more", extra)
+	}
+	return fmt.Errorf("cannot close %s: %d open sub-task(s) — close them first: %s", id, len(open), list)
+}
+
 // Close marks a task closed with closed_at=now and an optional reason.
 func (c *Core) Close(id string, p CloseParams) (*model.Task, error) {
 	id = c.resolveID(id)
+	// A parent can't be closed while it still has unfinished sub-tasks.
+	kids, err := c.st.List(store.Filter{Parent: id})
+	if err != nil {
+		return nil, err
+	}
+	if open := openChildren(kids); len(open) > 0 {
+		return nil, openChildrenErr(id, open)
+	}
 	// Acceptance gates block close: a task can't be closed while any command
 	// gate is still pending. The error names them + the CLI command to verify.
 	gates, err := c.st.ListGates(id)
