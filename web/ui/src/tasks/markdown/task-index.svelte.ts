@@ -6,24 +6,39 @@
  * `version` is a reactive tick: read `indexVersion()` inside a $derived so a
  * render re-runs when the index fills (the list may arrive after first paint).
  */
-import { shortId, type Task } from "$tasks/model/issue.js";
+import { shortId, type Status, type Task } from "$tasks/model/issue.js";
+
+/** The bits a linkified reference needs to render as a status pill. */
+export interface TaskRefInfo {
+  status: Status;
+  title: string;
+}
 
 let fullIds = new Set<string>();
 let shortToFull = new Map<string, string>();
+let byId = new Map<string, TaskRefInfo>();
 let version = $state(0);
 
 /** Rebuild the index from the current task list. */
 export function indexTasks(tasks: readonly Task[]): void {
   const full = new Set<string>();
   const short = new Map<string, string>();
+  const info = new Map<string, TaskRefInfo>();
   for (const task of tasks) {
     full.add(task.id);
     // Short (prefix-free) id → full id. Selectors are unique within a board.
     short.set(shortId(task.id), task.id);
+    info.set(task.id, { status: task.status, title: task.title });
   }
   fullIds = full;
   shortToFull = short;
+  byId = info;
   version++;
+}
+
+/** The status + title for a resolved full id (for rendering a pill). */
+export function taskRefInfo(fullId: string): TaskRefInfo | undefined {
+  return byId.get(fullId);
 }
 
 /**

@@ -186,3 +186,38 @@
     background-image: linear-gradient(var(--pressed), var(--pressed));
   }
 }
+
+/* Task-reference pills rendered inside markdown (see taskref.ts). Mirrors the
+   StatusBadge look — a status-colored dot + the task title — but is plain HTML
+   injected into prose, so it can't be the Svelte component. `a.taskref-pill`
+   out-specifies the typography plugin's link styling. */
+a.taskref-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  vertical-align: baseline;
+  border: 1px solid var(--border);
+  border-radius: 0.375rem;
+  padding: 0.02rem 0.4rem;
+  background-color: color-mix(in oklab, var(--muted) 40%, transparent);
+  color: var(--foreground);
+  font-weight: 500;
+  font-size: 0.85em;
+  line-height: 1.4;
+  text-decoration: none;
+}
+a.taskref-pill:hover {
+  background-color: var(--accent);
+  color: var(--accent-foreground);
+}
+.taskref-dot {
+  width: 0.42rem;
+  height: 0.42rem;
+  flex: none;
+  border-radius: 9999px;
+  background-color: var(--muted-foreground);
+}
+.taskref-pill[data-s="open"] .taskref-dot { background-color: var(--status-open); }
+.taskref-pill[data-s="in_progress"] .taskref-dot { background-color: var(--status-in-progress); }
+.taskref-pill[data-s="deferred"] .taskref-dot { background-color: var(--status-deferred); }
+.taskref-pill[data-s="closed"] .taskref-dot { background-color: var(--status-closed); }

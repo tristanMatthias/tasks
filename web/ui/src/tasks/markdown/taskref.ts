@@ -9,7 +9,7 @@ import { Marked, type Tokens } from "marked";
 import DOMPurify from "dompurify";
 import { shortId } from "$tasks/model/issue.js";
 import { taskPath } from "$shared/router/routes.js";
-import { resolveTaskRef } from "./task-index.svelte.js";
+import { resolveTaskRef, taskRefInfo } from "./task-index.svelte.js";
 
 /** Attribute the click handler reads to route via the SPA router. */
 export const TASK_REF_ATTR = "data-taskref";
@@ -26,8 +26,23 @@ interface TaskRefToken extends Tokens.Generic {
   display: string;
 }
 
-function link(id: string, display: string, extra = ""): string {
-  return `<a href="${taskPath(id)}" ${TASK_REF_ATTR}="${id}" class="font-medium text-primary underline decoration-primary/40 underline-offset-2 hover:decoration-primary${extra ? " " + extra : ""}">${display}</a>`;
+// A task reference renders as a status pill: a status-colored dot + the task's
+// title, as a link. It mirrors StatusBadge (which can't be used here — this is
+// sanitized HTML injected into markdown, not a Svelte component). Status drives
+// the dot color via a data-attr + global CSS (.taskref-pill in app.css), and the
+// title falls back to the short id when a task has none. When the id isn't in
+// the index yet (list still loading) we fall back to a plain id link.
+function pill(id: string): string {
+  const info = taskRefInfo(id);
+  const href = `${taskPath(id)}`;
+  if (!info) {
+    return `<a href="${href}" ${TASK_REF_ATTR}="${id}" class="taskref-pill" data-s="">${escapeHtml(shortId(id))}</a>`;
+  }
+  const label = info.title.trim() || shortId(id);
+  return (
+    `<a href="${href}" ${TASK_REF_ATTR}="${id}" class="taskref-pill" data-s="${info.status}">` +
+    `<span class="taskref-dot"></span>${escapeHtml(label)}</a>`
+  );
 }
 
 function escapeHtml(s: string): string {
@@ -51,17 +66,16 @@ const marked = new Marked({
         return { type: "taskref", raw: m[0], id, display: shortId(id) };
       },
       renderer(token) {
-        const { id, display } = token as TaskRefToken;
-        return link(id, display);
+        return pill((token as TaskRefToken).id);
       },
     },
   ],
   renderer: {
-    // Ids are usually written in `backticks`; a code span whose whole content is
-    // a real task becomes a (monospace) link, otherwise it stays plain code.
+    // Ids are often written in `backticks`; a code span whose whole content is a
+    // real task becomes a status pill, otherwise it stays plain code.
     codespan(token) {
       const id = resolveTaskRef(token.text);
-      return id ? link(id, shortId(id), "font-mono") : `<code>${escapeHtml(token.text)}</code>`;
+      return id ? pill(id) : `<code>${escapeHtml(token.text)}</code>`;
     },
   },
 });
