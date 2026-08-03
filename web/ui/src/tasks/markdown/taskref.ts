@@ -34,14 +34,13 @@ interface TaskRefToken extends Tokens.Generic {
 // the index yet (list still loading) we fall back to a plain id link.
 function pill(id: string): string {
   const info = taskRefInfo(id);
-  const href = `${taskPath(id)}`;
-  if (!info) {
-    return `<a href="${href}" ${TASK_REF_ATTR}="${id}" class="taskref-pill" data-s="">${escapeHtml(shortId(id))}</a>`;
-  }
-  const label = info.title.trim() || shortId(id);
+  const status = info?.status ?? "";
+  const idText = escapeHtml(shortId(id));
+  const title = info?.title.trim() ?? "";
+  const titleHtml = title ? `<span class="taskref-title">${escapeHtml(title)}</span>` : "";
   return (
-    `<a href="${href}" ${TASK_REF_ATTR}="${id}" class="taskref-pill" data-s="${info.status}">` +
-    `<span class="taskref-dot"></span>${escapeHtml(label)}</a>`
+    `<a href="${taskPath(id)}" ${TASK_REF_ATTR}="${id}" class="taskref-pill" data-s="${status}">` +
+    `<span class="taskref-dot"></span><span class="taskref-id">${idText}</span>${titleHtml}</a>`
   );
 }
 

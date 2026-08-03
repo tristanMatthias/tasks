@@ -13,10 +13,12 @@ test.describe("task references", () => {
     await board.open();
     await board.openTask(holder.id);
 
+    const shortId = target.id.slice(target.id.lastIndexOf("-") + 1);
     const pill = board.page.locator(`a.taskref-pill[data-taskref="${target.id}"]`);
     await expect(pill).toBeVisible();
-    await expect(pill).toContainText("Lexer rewrite"); // the title, not the id
     await expect(pill.locator(".taskref-dot")).toHaveCount(1); // status indicator
+    await expect(pill.locator(".taskref-id")).toHaveText(shortId); // the number
+    await expect(pill).toContainText("Lexer rewrite"); // then the title
     await expect(pill).toHaveAttribute("data-s", "open");
 
     // Clicking it navigates to the referenced task (SPA intercept).
