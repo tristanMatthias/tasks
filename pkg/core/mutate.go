@@ -165,12 +165,12 @@ type UpdateParams struct {
 	AppendNotes        string
 	// Parent reparents the task: non-nil moves it under that id, or detaches it
 	// to a root when the value is empty. The task's id is unchanged.
-	Parent             *string
-	SetLabels          *[]string
-	AddLabels          []string
-	RemoveLabels       []string
-	Claim              bool
-	Actor              string
+	Parent       *string
+	SetLabels    *[]string
+	AddLabels    []string
+	RemoveLabels []string
+	Claim        bool
+	Actor        string
 }
 
 // Update applies field changes and/or an atomic claim, returning the new task.

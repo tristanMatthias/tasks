@@ -1,0 +1,113 @@
+# GoReleaser — cross-platform release builds for the `tasks` CLI and `tasksd`
+# server. Driven by semver git tags (vX.Y.Z): CI runs `goreleaser release` on a
+# tag push (.github/workflows/release.yml). Validate locally with:
+#
+#   goreleaser check
+#   goreleaser build --snapshot --clean     # builds all targets, no publish
+#   goreleaser release --snapshot --clean    # full dry run incl. archives
+version: 2
+project_name: tasks
+
+before:
+  hooks:
+    - go mod tidy
+
+builds:
+  - id: tasks
+    main: ./cmd/tasks
+    binary: tasks
+    env: [CGO_ENABLED=0]
+    goos: [linux, darwin]
+    goarch: [amd64, arm64]
+    flags: [-trimpath]
+    ldflags:
+      - -s -w
+      - -X github.com/tristanMatthias/tasks/pkg/buildinfo.Version={{ .Version }}
+      - -X github.com/tristanMatthias/tasks/pkg/buildinfo.Commit={{ .FullCommit }}
+      - -X github.com/tristanMatthias/tasks/pkg/buildinfo.Date={{ .Date }}
+
+  - id: tasksd
+    main: ./cmd/tasksd
+    binary: tasksd
+    env: [CGO_ENABLED=0]
+    goos: [linux, darwin]
+    goarch: [amd64, arm64]
+    flags: [-trimpath]
+    ldflags:
+      - -s -w
+      - -X github.com/tristanMatthias/tasks/pkg/buildinfo.Version={{ .Version }}
+      - -X github.com/tristanMatthias/tasks/pkg/buildinfo.Commit={{ .FullCommit }}
+      - -X github.com/tristanMatthias/tasks/pkg/buildinfo.Date={{ .Date }}
+
+archives:
+  # Standard compressed archives (both binaries + docs) for humans.
+  - id: targz
+    ids: [tasks, tasksd]
+    formats: [tar.gz]
+    name_template: "tasks_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+    files: [README.md, LICENSE]
+  # Raw, version-less binaries — the stable URLs used by curl-install and by
+  # `tasks self-update` (github.com/.../releases/latest/download/tasks_<os>_<arch>).
+  - id: raw
+    ids: [tasks, tasksd]
+    formats: [binary]
+    name_template: "{{ .Binary }}_{{ .Os }}_{{ .Arch }}"
+
+checksum:
+  name_template: checksums.txt
+  algorithm: sha256
+
+# SBOM per archive (syft) — supply-chain provenance.
+sboms:
+  - artifacts: archive
+
+# Keyless (Sigstore/OIDC) signature over the checksums file — no secrets needed,
+# verifiable with `cosign verify-blob`.
+signs:
+  - cmd: cosign
+    signature: "${artifact}.sig"
+    certificate: "${artifact}.pem"
+    args:
+      - sign-blob
+      - "--yes"
+      - "--output-signature=${signature}"
+      - "--output-certificate=${certificate}"
+      - "${artifact}"
+    artifacts: checksum
+    output: true
+
+changelog:
+  use: github
+  sort: asc
+  groups:
+    - { title: Features, regexp: '^feat', order: 0 }
+    - { title: Fixes, regexp: '^fix', order: 1 }
+    - { title: Performance, regexp: '^perf', order: 2 }
+    - { title: Others, order: 999 }
+  filters:
+    exclude:
+      - '^chore:'
+      - '^test:'
+      - '^ci:'
+      - '^docs:'
+      - '^style:'
+      - 'Merge (pull request|branch)'
+
+release:
+  github:
+    owner: tristanMatthias
+    name: tasks
+  draft: false
+  prerelease: auto # tags like v1.2.3-rc.1 are published as pre-releases
+  name_template: "v{{ .Version }}"
+  footer: |
+    ---
+    ## Install
+
+    **CLI (`tasks`)** — download a static binary (no Go needed):
+    ```bash
+    curl -fsSL https://github.com/tristanMatthias/tasks/releases/latest/download/tasks_{{ if eq .Os "" }}linux{{ else }}{{ .Os }}{{ end }}_amd64 -o /usr/local/bin/tasks && chmod +x /usr/local/bin/tasks
+    ```
+    Or with Go: `go install github.com/tristanMatthias/tasks/cmd/tasks@latest`
+
+    Already installed? `tasks self-update`.

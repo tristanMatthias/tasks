@@ -13,6 +13,7 @@ import (
 	"strings"
 
 	"github.com/tristanMatthias/tasks/pkg/api"
+	"github.com/tristanMatthias/tasks/pkg/buildinfo"
 	"github.com/tristanMatthias/tasks/pkg/model"
 )
 
@@ -40,6 +41,11 @@ func Run(args []string) error {
 	case "-h", "--help", "help":
 		usage()
 		return nil
+	case "version", "--version", "-v":
+		fmt.Println(buildinfo.String())
+		return nil
+	case "self-update", "selfupdate", "upgrade":
+		return runSelfUpdate(rest)
 	}
 
 	// Support grouped commands like "keys create": try a two-word op name first,
@@ -468,6 +474,8 @@ func usage() {
 		fmt.Fprintf(&b, "  %-10s %s\n", name, op.Summary)
 	}
 	b.WriteString("  prime      Print workflow context\n")
+	b.WriteString("  version    Print version / build info\n")
+	b.WriteString("  self-update Replace this binary with the latest release (alias: upgrade)\n")
 	b.WriteString("\nRun 'tasks <command> --help' for a command's flags.\n")
 	b.WriteString("Global: --json (raw JSON output), --silent (create: print id only)\n")
 	b.WriteString("Env: TASKS_URL (default http://127.0.0.1:7842), TASKS_TOKEN (or AGENT_TASKS_API_KEY)\n")

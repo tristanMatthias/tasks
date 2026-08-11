@@ -240,7 +240,7 @@ func Ops() Registry {
 			},
 		},
 		{
-			Name: "gate add",
+			Name:    "gate add",
 			Summary: "Add an acceptance gate to a task: a command the CLI must run (exit 0) before the task can be closed.",
 			Method:  "POST", Path: "/api/v1/tasks/{id}/gates", Proto: &GateAddInput{},
 			Handle: func(c *core.Core, in any) (any, error) {
@@ -261,7 +261,7 @@ func Ops() Registry {
 			},
 		},
 		{
-			Name: "verify",
+			Name:    "verify",
 			Summary: "Verify a task's command gates by running them locally (CLI only). Runs each pending gate's command; on exit 0 it records the result so the task can be closed. The API/MCP cannot mark gates verified.",
 			// Local: no server route. The CLI executes commands on the host and
 			// calls the dedicated begin/complete endpoints. Never an MCP tool.

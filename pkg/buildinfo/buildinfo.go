@@ -11,7 +11,7 @@ import (
 
 // These are overridden at build time:
 //
-//	-ldflags "-X .../internal/buildinfo.Version=v1.2.3 -X .../buildinfo.Commit=abc -X .../buildinfo.Date=..."
+//	-ldflags "-X .../pkg/buildinfo.Version=v1.2.3 -X .../buildinfo.Commit=abc -X .../buildinfo.Date=..."
 var (
 	Version = "dev"
 	Commit  = ""

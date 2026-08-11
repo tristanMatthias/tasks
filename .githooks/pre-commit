@@ -4,5 +4,13 @@
 # Enable once with:  git config core.hooksPath .githooks   (or `make hooks`)
 set -euo pipefail
 repo_root="$(git rev-parse --show-toplevel)"
+# gofmt gate — CI fails on unformatted Go, so catch it here too.
+unformatted="$(gofmt -l "$repo_root/cmd" "$repo_root/pkg" 2>/dev/null || true)"
+if [ -n "$unformatted" ]; then
+  echo "FAIL: gofmt needed on:" >&2
+  echo "$unformatted" | sed 's/^/  /' >&2
+  echo "Run: gofmt -w cmd pkg" >&2
+  exit 1
+fi
 "$repo_root/scripts/check-coverage.sh"
 "$repo_root/scripts/check-e2e-gate.sh"

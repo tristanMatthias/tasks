@@ -5,44 +5,35 @@ on:
     tags: ['v*']
 
 permissions:
-  contents: write
-  packages: write
+  contents: write # create the GitHub Release + upload assets
+  packages: write # push the container image to GHCR
+  id-token: write # cosign keyless signing (Sigstore OIDC)
 
 jobs:
-  binaries:
+  # Cross-platform binaries, archives, checksums, SBOMs, a cosign-signed
+  # checksum file, and the GitHub Release with generated notes — all via
+  # GoReleaser (.goreleaser.yaml).
+  goreleaser:
     runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        include:
-          - { goos: linux,  goarch: amd64 }
-          - { goos: linux,  goarch: arm64 }
-          - { goos: darwin, goarch: amd64 }
-          - { goos: darwin, goarch: arm64 }
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # full history so the changelog can be generated
       - uses: actions/setup-go@v5
         with:
           go-version: '1.25'
-      - name: Build release binaries
-        env:
-          CGO_ENABLED: '0'
-          GOOS: ${{ matrix.goos }}
-          GOARCH: ${{ matrix.goarch }}
-        run: |
-          VERSION=${GITHUB_REF_NAME}
-          COMMIT=${GITHUB_SHA}
-          DATE=$(date -u +%Y-%m-%dT%H:%M:%SZ)
-          PKG=github.com/tristanMatthias/tasks/internal/buildinfo
-          LDFLAGS="-s -w -X $PKG.Version=$VERSION -X $PKG.Commit=$COMMIT -X $PKG.Date=$DATE"
-          out="tasks_${VERSION}_${GOOS}_${GOARCH}"
-          mkdir -p dist/$out
-          go build -trimpath -ldflags "$LDFLAGS" -o dist/$out/tasksd ./cmd/tasksd
-          go build -trimpath -ldflags "$LDFLAGS" -o dist/$out/tasks  ./cmd/tasks
-          (cd dist && tar czf $out.tar.gz $out)
-      - uses: softprops/action-gh-release@v2
+          cache: true
+      - uses: sigstore/cosign-installer@v3 # provides `cosign` for signing
+      - uses: anchore/sbom-action/download-syft@v0 # provides `syft` for SBOMs
+      - uses: goreleaser/goreleaser-action@v6
         with:
-          files: dist/*.tar.gz
+          distribution: goreleaser
+          version: '~> v2'
+          args: release --clean
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+  # Multi-arch container image (tasksd) to GHCR — unchanged from before.
   image:
     runs-on: ubuntu-latest
     permissions:

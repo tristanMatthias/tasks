@@ -23,8 +23,8 @@ type wsMessage struct {
 // the tenant/board key (empty in single-tenant), so a mutation in one workspace
 // never leaks to another's sockets.
 type wsHub struct {
-	mu      sync.Mutex
-	topics  map[string]map[*wsClient]struct{}
+	mu     sync.Mutex
+	topics map[string]map[*wsClient]struct{}
 }
 
 type wsClient struct {

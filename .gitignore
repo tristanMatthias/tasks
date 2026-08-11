@@ -13,3 +13,6 @@ coverage.html
 
 # built CLI binary (use `go install ./cmd/tasks`)
 /tasks
+
+# goreleaser output
+/dist/
