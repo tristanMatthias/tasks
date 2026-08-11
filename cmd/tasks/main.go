@@ -470,6 +470,6 @@ func usage() {
 	b.WriteString("  prime      Print workflow context\n")
 	b.WriteString("\nRun 'tasks <command> --help' for a command's flags.\n")
 	b.WriteString("Global: --json (raw JSON output), --silent (create: print id only)\n")
-	b.WriteString("Env: TASKS_URL (default http://127.0.0.1:7842), TASKS_TOKEN\n")
+	b.WriteString("Env: TASKS_URL (default http://127.0.0.1:7842), TASKS_TOKEN (or AGENT_TASKS_API_KEY)\n")
 	fmt.Print(b.String())
 }

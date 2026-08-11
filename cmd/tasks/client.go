@@ -28,9 +28,20 @@ func newClient() *client {
 	}
 	return &client{
 		base:  strings.TrimRight(base, "/"),
-		token: os.Getenv("TASKS_TOKEN"),
+		token: authToken(),
 		hc:    &http.Client{Timeout: 30 * time.Second},
 	}
+}
+
+// authToken reads the API token, accepting a few natural env-var names (first
+// non-empty wins). AGENT_TASKS_API_KEY matches the agenttasks board naming.
+func authToken() string {
+	for _, k := range []string{"TASKS_TOKEN", "AGENT_TASKS_API_KEY", "TASKS_API_KEY"} {
+		if v := os.Getenv(k); v != "" {
+			return v
+		}
+	}
+	return ""
 }
 
 // request sends method+path(+query)(+body) and returns the raw response body.
@@ -74,7 +85,7 @@ func (c *client) request(method, path string, query url.Values, body map[string]
 			return nil, fmt.Errorf("%s", e.Error)
 		}
 		if resp.StatusCode == http.StatusUnauthorized {
-			return nil, fmt.Errorf("unauthorized (HTTP 401) from %s — set TASKS_TOKEN to match the server", c.base)
+			return nil, fmt.Errorf("unauthorized (HTTP 401) from %s — set TASKS_TOKEN (or AGENT_TASKS_API_KEY) to a valid API key for this board", c.base)
 		}
 		return nil, fmt.Errorf("server at %s returned HTTP %d for %s %s — is tasksd running here? "+
 			"another service may be on this port (set TASKS_URL to point at your tasks server)",
