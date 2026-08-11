@@ -10,3 +10,6 @@ coverage.html
 
 # runtime task data (durability lives in the private agenttasks-data repo)
 .beads/
+
+# built CLI binary (use `go install ./cmd/tasks`)
+/tasks
